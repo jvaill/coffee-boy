@@ -98,9 +98,23 @@ class Debugger
   RST_n:      (add)       -> "RST $#{add}"
   RET_cc:     (cond)      -> "RET #{cond}"
 
+  # Extended operations:
+  SWAP_n:     (reg)       -> "SWAP #{reg}"
+  RLC_n:      (reg)       -> "RLC #{reg}"
+  RL_n:       (reg)       -> "RL #{reg}"
+  RRC_n:      (reg)       -> "RRC #{reg}"
+  RR_n:       (reg)       -> "RR #{reg}"
+  SLA_n:      (reg)       -> "SLA #{reg}"
+  SRA_n:      (reg)       -> "SRA #{reg}"
+  SRL_n:      (reg)       -> "SRL #{reg}"
+
   decodeOpcode: ->
     opcode = @getUint8()
 
+    # TODO: (or not): The following is repetitive. Eventually we might want
+    #                 to refactor this by dynamically creating a jump table
+    #                 of sorts, although I do like the simplicity and
+    #                 readability of the current approach.
     switch opcode
 
       # LD nn, n
@@ -446,27 +460,113 @@ class Debugger
 
       # Ext ops
       when 0xCB
-        params = @getUint8()
+        opcode2 = @getUint8()
 
-        # Command
-        command = params >> 6
-        mnemonic =
-          switch command
-            when 0x1 then 'BIT'
-            else
-              throw "Unknown command: 0x#{command.toString(16)}"
+        switch opcode2
 
-        # Bit
-        bit = (params >> 3) & 0x7
-        mnemonic += " #{bit}"
+          # SWAP n
+          when 0x37 then @SWAP_n('A')
+          when 0x30 then @SWAP_n('B')
+          when 0x31 then @SWAP_n('C')
+          when 0x32 then @SWAP_n('D')
+          when 0x33 then @SWAP_n('E')
+          when 0x34 then @SWAP_n('H')
+          when 0x35 then @SWAP_n('L')
+          when 0x36 then @SWAP_n('(HL)')
 
-        # Register
-        registers = ['B', 'C', 'D', 'E', 'H', 'L', '(HL)', 'A']
-        register  = registers[params & 0x7]
-        mnemonic += ", #{register}"
+          # RLC n
+          when 0x07 then @RLC_n('A')
+          when 0x00 then @RLC_n('B')
+          when 0x01 then @RLC_n('C')
+          when 0x02 then @RLC_n('D')
+          when 0x03 then @RLC_n('E')
+          when 0x04 then @RLC_n('H')
+          when 0x05 then @RLC_n('L')
+          when 0x06 then @RLC_n('(HL)')
 
-        mnemonic
+          # RL n
+          when 0x17 then @RL_n('A')
+          when 0x10 then @RL_n('B')
+          when 0x11 then @RL_n('C')
+          when 0x12 then @RL_n('D')
+          when 0x13 then @RL_n('E')
+          when 0x14 then @RL_n('H')
+          when 0x15 then @RL_n('L')
+          when 0x16 then @RL_n('(HL)')
 
+          # RRC n
+          when 0x0F then @RRC_n('A')
+          when 0x08 then @RRC_n('B')
+          when 0x09 then @RRC_n('C')
+          when 0x0A then @RRC_n('D')
+          when 0x0B then @RRC_n('E')
+          when 0x0C then @RRC_n('H')
+          when 0x0D then @RRC_n('L')
+          when 0x0E then @RRC_n('(HL)')
+
+          # RR n
+          when 0x1F then @RR_n('A')
+          when 0x18 then @RR_n('B')
+          when 0x19 then @RR_n('C')
+          when 0x1A then @RR_n('D')
+          when 0x1B then @RR_n('E')
+          when 0x1C then @RR_n('H')
+          when 0x1D then @RR_n('L')
+          when 0x1E then @RR_n('(HL)')
+
+          # SLA n
+          when 0x27 then @SLA_n('A')
+          when 0x20 then @SLA_n('B')
+          when 0x21 then @SLA_n('C')
+          when 0x22 then @SLA_n('D')
+          when 0x23 then @SLA_n('E')
+          when 0x24 then @SLA_n('H')
+          when 0x25 then @SLA_n('L')
+          when 0x26 then @SLA_n('(HL)')
+
+          # SRA n
+          when 0x2F then @SRA_n('A')
+          when 0x28 then @SRA_n('B')
+          when 0x29 then @SRA_n('C')
+          when 0x2A then @SRA_n('D')
+          when 0x2B then @SRA_n('E')
+          when 0x2C then @SRA_n('H')
+          when 0x2D then @SRA_n('L')
+          when 0x2E then @SRA_n('(HL)')
+
+          # SRL n
+          when 0x3F then @SRL_n('A')
+          when 0x38 then @SRL_n('B')
+          when 0x39 then @SRL_n('C')
+          when 0x3A then @SRL_n('D')
+          when 0x3B then @SRL_n('E')
+          when 0x3C then @SRL_n('H')
+          when 0x3D then @SRL_n('L')
+          when 0x3E then @SRL_n('(HL)')
+
+          else
+            unless opcode2 >= 0x40
+              throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
+
+            # Command
+            mnemonic =
+              if opcode2 >= 0x40 and opcode2 <= 0x7F
+                'BIT'
+              else if opcode2 >= 0x80 and opcode2 <= 0xBF
+                'RES'
+              else if opcode2 >= 0xC0 and opcode2 <= 0xFF
+                'SET'
+            
+            # Bit
+            bit = (opcode2 >> 3) & 0x7
+            mnemonic += " #{bit}"
+
+            # Register
+            registers = ['B', 'C', 'D', 'E', 'H', 'L', '(HL)', 'A']
+            register  = registers[opcode2 & 0x7]
+            mnemonic += ", #{register}"
+
+            mnemonic
 
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
