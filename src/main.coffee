@@ -14,5 +14,4 @@ downloadBlob = (path, cb) ->
   xhr.send()
 
 downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-  alert 'Got blob!'
-  console.log blob
+  new Debugger().loadCode(blob)
