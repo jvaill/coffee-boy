@@ -90,7 +90,7 @@ class Debugger
   ADD_HL_n:   (reg)       -> "ADD HL, #{reg}"
   ADD_SP_imm:             -> "ADD SP, $#{@getUint8H()}"
   JP_nn:                  -> "JP $#{@getUint16H()}"
-  JP_cc_nn:   (reg)       -> "JP #{reg}, $#{@getUint16H()}"
+  JP_cc_nn:   (cond)      -> "JP #{cond}, $#{@getUint16H()}"
   JR_n:                   -> "JR $#{@getRelInt8JmpAddressH()}"
   JR_cc_n:    (cond)      -> "JR #{cond}, $#{@getRelInt8JmpAddressH()}"
   CALL_nn:                -> "CALL $#{@getUint16H()}"
