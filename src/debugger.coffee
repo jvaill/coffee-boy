@@ -59,7 +59,7 @@ class Debugger
   LD_r1_r2:   (reg, reg2) -> "LD #{reg}, #{reg2}"
   LD_A_n:     (reg)       -> "LD A, #{reg}"
   LD_A_NN:                -> "LD A, ($#{@getUint16H()})"
-  LD_A_imm:               -> "LD A, $#{@getUint16H()}"
+  LD_A_imm:               -> "LD A, $#{@getUint8H()}"
   LD_n_A:     (reg)       -> "LD #{reg}, A"
   LD_NN_A:                -> "LD ($#{@getUint16H()}), A"
   LDH_N_A:                -> "LDH ($#{@getUint8H()}), A"
