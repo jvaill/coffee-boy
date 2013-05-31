@@ -26,7 +26,7 @@ startWebServer = ->
 
   app
 
-task 'build', 'Build lib/ from src/.', ->
+task 'build', 'Build lib/ from src/', ->
   build()
 
 task 'server', 'Start a local server and watch src/ for changes.', ->
