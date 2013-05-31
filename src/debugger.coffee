@@ -171,7 +171,7 @@ class Debugger
   decodeOpcode: ->
     opcode = @getUint8()
     unless opcode?
-      return end: true
+      return { end: true }
 
     # TODO: (or not): The following is repetitive. Eventually we might want
     #                 to refactor this by dynamically creating a jump table
