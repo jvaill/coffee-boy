@@ -14,4 +14,4 @@ downloadBlob = (path, cb) ->
   xhr.send()
 
 downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-  new Debugger().LoadCode(blob)
+  console.log new Debugger().LoadCode(blob)

@@ -1,19 +1,52 @@
 class Debugger
-  PC: 0
+  PC:         0
+  codePaths:  []
+  diassembly: []
 
   LoadCode: (buffer) ->
     unless buffer instanceof Uint8Array
       throw 'Input buffer must be of type Uint8Array.'
 
     @buffer = buffer
+    @reset()
     @disassemble()
+
+  reset: ->
+    @PC          = 0
+    @codePaths   = []
+    @disassembly = []
 
   disassemble: ->
     unless @buffer?
       throw 'Code must be loaded using Debugger.LoadCode() first.'
 
+    # Store the PC before the instruction is fetched.
+    PC = @PC
+
     while mnemonic = @decodeOpcode()
-      console.log mnemonic
+      if typeof mnemonic == 'object'
+        # Object, does it have a mnemonic?
+        if mnemonic.label?
+          @disassembly[PC] = mnemonic.label
+
+        # This property flags the end of a code path.
+        if mnemonic.end
+          @PC = @codePaths.pop()
+          break unless @PC?
+      else
+        # String, it's just the mnemonic.
+        @disassembly[PC] = mnemonic
+
+      # Again, store the PC before the next instruction is fetched.
+      PC = @PC
+
+    @disassembly
+
+  trackCodeAtAddress: (address) ->
+    unless @disassembly[address]?
+      @codePaths.push address
+
+    address.toString(16)
 
   # Unsigned
 
@@ -89,27 +122,56 @@ class Debugger
   DEC_n:      (reg)       -> "DEC #{reg}"
   ADD_HL_n:   (reg)       -> "ADD HL, #{reg}"
   ADD_SP_imm:             -> "ADD SP, $#{@getUint8H()}"
-  JP_nn:                  -> "JP $#{@getUint16H()}"
-  JP_cc_nn:   (cond)      -> "JP #{cond}, $#{@getUint16H()}"
-  JR_n:                   -> "JR $#{@getRelInt8JmpAddressH()}"
-  JR_cc_n:    (cond)      -> "JR #{cond}, $#{@getRelInt8JmpAddressH()}"
-  CALL_nn:                -> "CALL $#{@getUint16H()}"
-  CALL_cc_nn: (cond)      -> "CALL #{cond}, $#{@getUint16H()}"
   RST_n:      (add)       -> "RST $#{add}"
   RET_cc:     (cond)      -> "RET #{cond}"
 
-  # Extended operations:
-  SWAP_n:     (reg)       -> "SWAP #{reg}"
-  RLC_n:      (reg)       -> "RLC #{reg}"
-  RL_n:       (reg)       -> "RL #{reg}"
-  RRC_n:      (reg)       -> "RRC #{reg}"
-  RR_n:       (reg)       -> "RR #{reg}"
-  SLA_n:      (reg)       -> "SLA #{reg}"
-  SRA_n:      (reg)       -> "SRA #{reg}"
-  SRL_n:      (reg)       -> "SRL #{reg}"
+  # Jumps are loosely tracked to avoid disassembling data:
+
+  # Non-conditional jumps end the current code path.
+  JP_nn: ->
+    addressH = @trackCodeAtAddress(@getUint16())
+    { label: "JP $#{addressH}", end: true }
+
+  JR_n: ->
+    addressH = @trackCodeAtAddress(@getRelInt8JmpAddress())
+    { label: "JR $#{addressH}", end: true }
+
+  # Track conditional jump code paths.
+  JP_cc_nn: (cond) ->
+    addressH = @trackCodeAtAddress(@getUint16())
+    "JP #{cond}, $#{addressH}"
+
+  JR_cc_n: (cond) ->
+    addressH = @trackCodeAtAddress(@getRelInt8JmpAddress())
+    "JR #{cond}, $#{addressH}"
+
+  # Track call code paths.
+  CALL_nn: ->
+    addressH = @trackCodeAtAddress(@getUint16())
+    "CALL $#{addressH}"
+
+  CALL_cc_nn: (cond) ->
+    addressH = @trackCodeAtAddress(@getUint16())
+    "CALL #{cond}, $#{addressH}"
+
+  # Returns end the current code path.
+  RET:  -> { label: 'RET',  end: true }
+  RETI: -> { label: 'RETI', end: true }
+
+  # Extended operations
+  SWAP_n: (reg) -> "SWAP #{reg}"
+  RLC_n:  (reg) -> "RLC #{reg}"
+  RL_n:   (reg) -> "RL #{reg}"
+  RRC_n:  (reg) -> "RRC #{reg}"
+  RR_n:   (reg) -> "RR #{reg}"
+  SLA_n:  (reg) -> "SLA #{reg}"
+  SRA_n:  (reg) -> "SRA #{reg}"
+  SRL_n:  (reg) -> "SRL #{reg}"
 
   decodeOpcode: ->
     opcode = @getUint8()
+    unless opcode?
+      return end: true
 
     # TODO: (or not): The following is repetitive. Eventually we might want
     #                 to refactor this by dynamically creating a jump table
@@ -447,7 +509,7 @@ class Debugger
       when 0xFF then @RST_n(0x38)
 
       # RET
-      when 0xC9 then 'RET'
+      when 0xC9 then @RET()
 
       # RET cc
       when 0xC0 then @RET_cc('NZ')
@@ -456,7 +518,7 @@ class Debugger
       when 0xD8 then @RET_cc('C')
 
       # RETI
-      when 0xD9 then 'RETI'
+      when 0xD9 then @RETI()
 
       # Ext ops
       when 0xCB
