@@ -30,3 +30,6 @@ $ ->
       disassembly.push "#{padLeft(addressH, '0', 4)}: #{mnemonic}"
     
     $('#disassembly').val disassembly.join("\n")
+
+    cpu = new CPU()
+    cpu.LoadCode blob

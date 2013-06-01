@@ -1,7 +1,8 @@
 class Debugger
-  PC:         0
-  codePaths:  []
-  diassembly: []
+  buffer:     null
+  PC:         null
+  codePaths:  null
+  diassembly: null
 
   LoadCode: (buffer) ->
     unless buffer instanceof Uint8Array
