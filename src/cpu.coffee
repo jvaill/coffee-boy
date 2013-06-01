@@ -3,6 +3,10 @@ class CPU
   PC:     null
   SP:     null
   A:      null
+  B:      null
+  C:      null
+  D:      null
+  E:      null
   H:      null
   L:      null
   flags:  null
@@ -20,6 +24,10 @@ class CPU
     @PC = 0
     @SP = 0
     @A  = 0
+    @B  = 0
+    @C  = 0
+    @D  = 0
+    @E  = 0
     @H  = 0
     @L  = 0
     @memory = []
@@ -99,6 +107,44 @@ class CPU
         unless @flags.Z
           @PC = address
 
+      # LD C, n
+      when 0x0E
+        @C = @getUint8()
+
+      # LD A, #
+      when 0x3E
+        @A = @getUint8()
+
+      # LD ($FF00 + C), A
+      when 0xE2
+        @memory[0xFF00 + @C]     = (@A >> 8)
+        @memory[0xFF00 + @C + 1] = (@A & 0xFF)
+
+      # INC C
+      when 0x0C
+        @C++
+        @flags.Z == @C == 0
+        @flags.N = 0
+        @flags.H = ((@C >> 3) & 1) == 1
+
+      # LD (HL), A
+      when 0x77
+        @memory[(@H << 8) + @L] = @A
+
+      # LD ($FF00+n), A
+      when 0xE0
+        address = 0xFF00 + @getUint8()
+        @memory[address] = @A
+
+      # LD DE, nn
+      when 0x11
+        @E = @getUint8()
+        @D = @getUint8()
+
+      # LD A, (DE)
+      when 0x1A
+        @A = @memory[(@D << 8) + @E]
+
       when 0xCB
         opcode2 = @getUint8()
 
@@ -113,6 +159,7 @@ class CPU
             throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
 
       else
+        console.log @PC.toString(16)
         console.log @memory
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
