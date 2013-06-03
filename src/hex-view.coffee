@@ -38,7 +38,7 @@ do ($ = jQuery) =>
 
       # Gets different sizes required for rendering.
       getSizes = (xStride) ->
-        maxMemoryAddress    = buffer.length.toString(16)
+        maxMemoryAddress = buffer.length.toString(16)
 
         addressGutterLength = maxMemoryAddress.length
         bytesPerLine        = 1
