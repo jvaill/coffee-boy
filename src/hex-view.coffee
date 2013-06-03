@@ -37,7 +37,7 @@ do ($ = jQuery) =>
         { width: charWidth, height: charHeight }
 
       # Gets different sizes required for rendering.
-      getSizes = (stride) ->
+      getSizes = (xStride) ->
         maxMemoryAddress    = buffer.length.toString(16)
 
         addressGutterLength = maxMemoryAddress.length
@@ -45,18 +45,18 @@ do ($ = jQuery) =>
 
         # Calculates the number of characters per line with the given parameters.
         calculateStride = (addressGutterLength, numBytes) ->
-          _stride  = addressGutterLength # Address in buffer    ('00FF')
-          _stride += 1                   # Separator            (' ')
-          _stride += numBytes * 3        # Data incl. separator ('50 6F 6F 66 21 ')
-          _stride += numBytes            # ASCII representation ('Poof!')
-          _stride
+          stride  = addressGutterLength # Address in buffer    ('00FF')
+          stride += 1                   # Separator            (' ')
+          stride += numBytes * 3        # Data incl. separator ('50 6F 6F 66 21 ')
+          stride += numBytes            # ASCII representation ('Poof!')
+          stride
 
         # Ensure that we can at least display one byte per line.
-        if calculateStride(addressGutterLength, bytesPerLine) > stride
+        if calculateStride(addressGutterLength, bytesPerLine) > xStride
           throw 'Container must be sufficiently wide to display at least one byte.'
 
         # Add bytes to fill the remaining space.
-        while calculateStride(addressGutterLength, bytesPerLine + 1) <= stride
+        while calculateStride(addressGutterLength, bytesPerLine + 1) <= xStride
           bytesPerLine++
 
         { addressGutterLength: addressGutterLength, bytesPerLine: bytesPerLine }
