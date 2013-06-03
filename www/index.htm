@@ -3,15 +3,37 @@
 <head>
   <title>Coffee Boy</title>
 
+  <style type="text/css">
+    #disassembly, #hex {
+      font-family: monospace;
+    }
+
+    #disassembly {
+      width: 450px;
+      height: 450px;
+    }
+
+    #hex {
+      width: 450px;
+      height: 200px;
+      border: 1px solid black;
+    }
+  </style>
+
   <script src="http://code.jquery.com/jquery-1.10.0.min.js"></script>
   <script src="http://code.jquery.com/jquery-migrate-1.2.1.min.js"></script>
 
+  <script src="../lib/hex-view.js"></script>
   <script src="../lib/debugger.js"></script>
   <script src="../lib/cpu.js"></script>
   <script src="../lib/main.js"></script>
 </head>
 <body>
   <h1>Coffee Boy</h1>
+
   <h2>Disassembly:</h2>
-  <textarea id="disassembly" style="width: 450px; height: 450px"></textarea>
+  <textarea id="disassembly"></textarea>
+
+  <h2>Memory:</h2>
+  <div id="hex"></div>
 </body>

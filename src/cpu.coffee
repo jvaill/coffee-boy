@@ -12,12 +12,15 @@ class CPU
   flags:  null
   memory: null
 
+  constructor: ->
+    @reset()
+
   LoadCode: (buffer) ->
     unless buffer instanceof Uint8Array
       throw 'Input buffer must be of type Uint8Array.'
 
     @buffer = buffer
-    @reset()
+    # @reset()
     @resume()
 
   reset: ->
@@ -30,7 +33,7 @@ class CPU
     @E  = 0
     @H  = 0
     @L  = 0
-    @memory = []
+    @memory = new Array(0xFFFF + 1)
 
     @flags =
       Z: null
@@ -159,8 +162,6 @@ class CPU
             throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
 
       else
-        console.log @PC.toString(16)
-        console.log @memory
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
 

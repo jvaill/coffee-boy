@@ -1,3 +1,5 @@
+# Adapted from:
+# http://www.discoded.com/2012/04/05/my-favorite-javascript-string-extensions-in-coffeescript/
 padLeft = (string, padString, length) ->
   while string.length < length
     string = padString + string
@@ -19,8 +21,11 @@ downloadBlob = (path, cb) ->
   xhr.send()
 
 $ ->
-  # Download and disassemble!
+  cpu = new CPU()
+  $('#hex').hexView(cpu.memory)
+
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
+    # Disassemble
     debug = new Debugger()
     debug.LoadCode blob
 
@@ -31,5 +36,5 @@ $ ->
     
     $('#disassembly').val disassembly.join("\n")
 
-    cpu = new CPU()
-    cpu.LoadCode blob
+    # Emulate
+    cpu.LoadCode blob      
