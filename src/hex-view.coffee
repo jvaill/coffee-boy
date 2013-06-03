@@ -80,17 +80,17 @@ do ($ = jQuery) =>
           ascii = ''
           for index in [rowAddress...rowAddress + bytesPerLine]
             if index > buffer.length - 1
-              # Last line, add non-breaking spaces to pad bytes so that the ascii still aligns.
+              # Last line. Append non-breaking spaces to pad bytes so the ascii still aligns.
               bytes.push String.fromCharCode(0xA0) + String.fromCharCode(0xA0)
             else
               byte  = if buffer[index]? then buffer[index] else '??'
 
-              # Add the byte (padded).
+              # Append the byte.
               bytes.push padLeft(byte.toString(16), 0, 2)
-              # Add the char if it falls within the printable ASCII range, otherwise add a dot.
+              # Append the char if it falls within the printable ASCII range, otherwise append a dot.
               ascii += if byte >= 0x20 and byte <= 0x7E then String.fromCharCode(byte) else '.'
 
-          # Add the line.
+          # Append the line.
           view.push "#{rowAddressH} #{bytes.join(' ')} #{ascii}"
 
         # Finally, render the view.
