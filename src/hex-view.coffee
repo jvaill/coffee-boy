@@ -116,6 +116,6 @@ do ($ = jQuery) =>
         yIndex = Math.floor($(@).scrollTop() / fontDimensions.height)
         render(yIndex * sizes.bytesPerLine, sizes.addressGutterLength, sizes.bytesPerLine, yStride)
 
-      # TODO: Add a mechanism to invalidate the current view if it's underlying data changes.
+      # TODO: Add a mechanism to invalidate the current view if its underlying data changes.
 
       this
