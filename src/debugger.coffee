@@ -273,7 +273,7 @@ class Debugger
       when 0xEA then @LD_NN_A()
 
       # LD A, (C)
-      when 0xF2 then 'LD A, ($FF00 + C)' # This does not appear in some docs, but seems valid.
+      when 0xF2 then 'LD A, ($FF00 + C)'
       # LD (C), A
       when 0xE2 then 'LD ($FF00 + C), A'
       # LDD A, (HL)
