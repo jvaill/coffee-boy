@@ -44,6 +44,7 @@ $ ->
       # Emulate
       try
         cpu.LoadCode tmp
+        $('#hex').hexView('refresh')
         
         doShit = ->
           # console.log cpu.regs.PC.toString(16)
