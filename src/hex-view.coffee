@@ -3,6 +3,7 @@ do ($ = jQuery) =>
   PLUGIN_NAMESPACE = 'HEX_VIEW'
 
   class HexView
+    
     MEASUREMENT_TEST_STRING: 'iqVy.ch=KM/4'
 
     $element:  null
