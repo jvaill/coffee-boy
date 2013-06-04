@@ -20,6 +20,12 @@ class CPU
       throw 'Input buffer must be of type Uint8Array.'
 
     @buffer = buffer
+
+    # Kind of map the ROM where it belongs.
+    for i in [0...0xFF]
+      @memory[i] = @buffer[i]
+      @memory[i + 0xFF] = @buffer[i + 0xFF * 2 + 1]
+
     # @reset()
     @resume()
 
@@ -110,6 +116,16 @@ class CPU
         unless @flags.Z
           @PC = address
 
+      # JR Z, *
+      when 0x28
+        address = @getRelInt8JmpAddress()
+        if @flags.Z
+          @PC = address
+
+      # JR n
+      when 0x18
+        @PC = @getRelInt8JmpAddress()
+
       # LD C, n
       when 0x0E
         @C = @getUint8()
@@ -120,8 +136,7 @@ class CPU
 
       # LD ($FF00 + C), A
       when 0xE2
-        @memory[0xFF00 + @C]     = (@A >> 8)
-        @memory[0xFF00 + @C + 1] = (@A & 0xFF)
+        @memory[0xFF00 + @C] = @A
 
       # INC C
       when 0x0C
@@ -148,6 +163,109 @@ class CPU
       when 0x1A
         @A = @memory[(@D << 8) + @E]
 
+      # CALL nn
+      when 0xCD
+        address = @getUint16()
+        @memory[@SP] = @PC >> 8
+        @memory[@SP - 1] = @PC & 0xFF
+        @SP -= 2
+        @PC = address
+
+      # LD C, A
+      when 0x4F
+        @C = @A
+
+      # LD B, n
+      when 0x06
+        @B = @getUint8()
+
+      # LD L, n
+      when 0x2E
+        @L = @getUint8()
+
+      # PUSH BC
+      when 0xC5
+        @memory[@SP] = @B
+        @memory[@SP - 1] = @C
+        @SP -= 2
+
+      # RLA
+      when 0x17
+        newC= @A >> 7
+        @flags.N = 0
+        @flags.H = 0
+        @A = ((@A << 1) + @flags.C) & 0xFF
+        @flags.C = newC
+        @flags.Z = if @A == 0 then 1 else 0
+
+      # POP BC
+      when 0xC1
+        @C = @memory[@SP + 1]
+        @B = @memory[@SP + 2]
+        @SP += 2
+
+      # DEC B
+      when 0x05
+        @B--
+        @flags.Z = if @B == 0 then 1 else 0
+        @flags.N = 1
+        #@flags.H = ?? I don't understand this flag yet :)
+
+      # DEC A
+      when 0x3D
+        @A--
+        @flags.Z = if @A == 0 then 1 else 0
+        @flags.N = 1
+        #@flags.H = ?? I don't understand this flag yet :)
+
+      # DEC C
+      when 0x0D
+        @C--
+        @flags.Z = if @C == 0 then 1 else 0
+        @flags.N = 1
+        #@flags.H = ?? I don't understand this flag yet :)
+
+      # LDI (HL), A
+      when 0x22
+        @memory[(@H << 8) + @L] = @A
+        @L = (@L + 1) & 255
+        if !@L
+          @H = (@H + 1) & 255
+
+      # INC HL
+      when 0x23
+        @L = (@L + 1) & 255
+        if !@L
+          @H = (@H + 1) & 255
+
+      # INC DE
+      when 0x13
+        @E = (@E + 1) & 255
+        if !@E
+          @D = (@D + 1) & 255
+
+      # RET
+      when 0xC9
+        @PC = (@memory[@SP + 2] << 8) + @memory[@SP + 1]
+        @SP += 2
+
+      # LD A, E
+      when 0x7B
+        @A = @E
+
+      # CP #
+      when 0xFE
+        data = @getUint8()
+        result = @A - data
+        @flags.Z = if result == 0 then 1 else 0
+        @flags.N = 1
+        #flags.H ??
+        @flags.C = if @A < data then 1 else 0
+
+      # LD (nn), A
+      when 0xEA
+        @memory[@getUint16()] = @A
+
       when 0xCB
         opcode2 = @getUint8()
 
@@ -158,6 +276,16 @@ class CPU
             @booya = @H
             @flags.N = 0
             @flags.H = 1
+
+          # RL C
+          when 0x11
+            newC = @C >> 7
+            @flags.N = 0
+            @flags.H = 0
+            @C = ((@C << 1) + @flags.C) & 0xFF
+            @flags.C = newC
+            @flags.Z = if @C == 0 then 1 else 0
+
           else
             throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
 

@@ -36,5 +36,38 @@ $ ->
     
     $('#disassembly').val disassembly.join("\n")
 
-    # Emulate
-    cpu.LoadCode blob      
+    downloadBlob 'ROMS/ROM.gb', (blob2) ->
+      tmp = new Uint8Array(blob.byteLength + blob2.byteLength)
+      tmp.set(blob, 0)
+      tmp.set(blob2, blob.byteLength)
+
+      # Emulate
+      try
+        cpu.LoadCode tmp
+      finally
+        # When the processor crashes (and it does..) draw the screen for the first time. :-)
+        ctx = $('#canvas').get(0).getContext('2d')
+        ctx.fillStyle = "black"
+
+        drawTile = (tileIndex, x, y) ->
+          # Each tile is 16 bytes long.
+          baseIndex = 0x8000 + tileIndex * 16
+
+          # 8 rows.
+          for y2 in [0...8]
+            rowIndex = baseIndex + y2 * 2
+            tiles  = cpu.memory[rowIndex]
+            tiles2 = cpu.memory[rowIndex + 1]
+
+            for i in [0...8]
+              # Single tone, beurk.
+              if tiles >> (7 - i) & 1 == 1 or tiles2 >> (7 - i) & 1 == 1
+                ctx.fillRect(x + i, y + y2, 1, 1)
+
+        for x in [0...32]
+          for y in [0...32]
+            mapIdx = cpu.memory[0x9800 + x + y * 32]
+            drawTile mapIdx, x * 8, y * 8
+
+
+
