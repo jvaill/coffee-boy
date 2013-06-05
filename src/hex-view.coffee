@@ -54,7 +54,7 @@ do ($ = jQuery) =>
         top:   -height
       )
 
-      # Get stride (# of chars per row, # of chars per column).
+      # Calculate stride (# of chars per row, # of chars per column).
       @fontDimensions = @getFontDimensions()
       @stride =
         x: Math.floor(width  / @fontDimensions.width)
@@ -65,6 +65,7 @@ do ($ = jQuery) =>
       @addressGutterLength = sizes.addressGutterLength
       @bytesPerLine        = sizes.bytesPerLine
 
+    # Recalculates the scrollbar's length.
     bufferLengthChanged: ->
       @$scroller.empty()
       # Create a scrollbar and set its height accordingly.
