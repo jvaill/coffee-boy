@@ -154,7 +154,7 @@ do ($ = jQuery) =>
         instance = $(@).data(PLUGIN_NAMESPACE)
         instance[method].apply instance, Array.prototype.slice.call(arguments, 1)
       else
-        # Create a new instance.
+        # Create an instance.
         instance = new HexView(this, buffer)
         $(@).data(PLUGIN_NAMESPACE, instance)
 
