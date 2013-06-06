@@ -3,7 +3,6 @@ do ($ = jQuery) =>
   PLUGIN_NAMESPACE = 'HEX_VIEW'
 
   class HexView
-    
     MEASUREMENT_TEST_STRING: 'iqVy.ch=KM/4'
 
     $element:  null
@@ -16,13 +15,13 @@ do ($ = jQuery) =>
     bytesPerLine:        null
 
     constructor: (element, @buffer) ->
-      unless element? then throw "A containing element is required."
-      unless @buffer? then throw "A buffer is required."
+      unless element? then throw 'A containing element is required.'
+      unless @buffer? then throw 'A buffer is required.'
 
       @$element = $(element).empty()
 
       # Create a div to hold the current data view,
-      @$data     = $("<div />").appendTo(@$element)
+      @$data     = $('<div/>').appendTo(@$element)
       # Create a second div and overlay it to allow for scrolling.
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 

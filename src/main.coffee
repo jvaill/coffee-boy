@@ -26,11 +26,10 @@ $ ->
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
     # Disassemble
-    debug = new Debugger()
-    debug.LoadCode blob
+    disassembler = new Disassembler(blob)
 
     disassembly = []
-    for address, mnemonic of debug.disassembly
+    for address, mnemonic of disassembler.disassembly
       addressH = parseInt(address).toString(16)
       disassembly.push "#{padLeft(addressH, '0', 4)}: #{mnemonic}"
     

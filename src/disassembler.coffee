@@ -1,14 +1,18 @@
-class Debugger
+class Disassembler
   buffer:     null
   PC:         null
   codePaths:  null
   diassembly: null
 
-  LoadCode: (buffer) ->
+  constructor: (buffer) ->
+    unless buffer?
+      throw 'A buffer is required.'
     unless buffer instanceof Uint8Array
-      throw 'Input buffer must be of type Uint8Array.'
+      throw 'Buffer must be of type Uint8Array.'
 
-    @buffer = buffer
+    @LoadCode buffer
+
+  LoadCode: (@buffer) ->
     @reset()
     @disassemble()
 
@@ -18,9 +22,6 @@ class Debugger
     @disassembly = []
 
   disassemble: ->
-    unless @buffer?
-      throw 'Code must be loaded using Debugger.LoadCode() first.'
-
     # Store the PC before the instruction is fetched.
     PC = @PC
 
@@ -38,7 +39,7 @@ class Debugger
         # String, it's just the mnemonic.
         @disassembly[PC] = mnemonic
 
-      # Again, store the PC before the next instruction is fetched.
+      # Store the PC before the next instruction is fetched.
       PC = @PC
 
     @disassembly
@@ -635,4 +636,4 @@ class Debugger
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
 
-window.Debugger = Debugger
+window.Disassembler = Disassembler
