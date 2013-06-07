@@ -9,6 +9,7 @@ do ($ = jQuery) =>
     $data:     null
     $scroller: null
 
+    buffer:              null
     fontDimensions:      null
     stride:              null
     addressGutterLength: null
@@ -141,7 +142,7 @@ do ($ = jQuery) =>
         bytes       = bytes.join(' ')
         ascii       = ascii.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-        view.push "#{lineAddress} #{bytes} #{ascii}"
+        view.push "<span style='color: blue'>#{lineAddress}</span> #{bytes} <span style='color: SlateGray'>#{ascii}</span>"
 
       # Render.
       @$data.html view.join('<br/>')

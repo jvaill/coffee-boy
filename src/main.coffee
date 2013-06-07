@@ -1,9 +1,5 @@
-# Adapted from:
-# http://www.discoded.com/2012/04/05/my-favorite-javascript-string-extensions-in-coffeescript/
-padLeft = (string, padString, length) ->
-  while string.length < length
-    string = padString + string
-  return string
+requestAnimationFrame = window.requestAnimationFrame or window.mozRequestAnimationFrame or
+                        window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
 
 downloadBlob = (path, cb) ->
   # jQuery didn't support 'arraybuffer' as a response type.
@@ -22,32 +18,27 @@ downloadBlob = (path, cb) ->
 
 $ ->
   cpu = new CPU()
-  $('#hex').hexView(cpu.memory)
+  $('#memory').hexView(cpu.memory)
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-    # Disassemble
+    # Disassemble.
     disassembler = new Disassembler(blob)
-
-    disassembly = []
-    for address, mnemonic of disassembler.disassembly
-      addressH = parseInt(address).toString(16)
-      disassembly.push "#{padLeft(addressH, '0', 4)}: #{mnemonic}"
-    
-    $('#disassembly').val disassembly.join("\n")
+    $('#disassembly').disassemblyView(disassembler)
 
     downloadBlob 'ROMS/ROM.gb', (blob2) ->
+      # Append the rom after the BIOS.
       tmp = new Uint8Array(blob.byteLength + blob2.byteLength)
       tmp.set(blob, 0)
       tmp.set(blob2, blob.byteLength)
 
-      # Emulate
+      # Scrappy emulate.
       try
         cpu.LoadCode tmp
-        $('#hex').hexView('refresh')
+        $('#memory').hexView('refresh')
         
-        doShit = ->
-          # console.log cpu.regs.PC.toString(16)
-          cpu.memory[0xFF44] = 0x90 #vblank available
+        step = ->
+          # Vblank available.
+          cpu.memory[0xFF44] = 0x90
 
           ctx = $('#canvas').get(0).getContext('2d')
           ctx.clearRect(0, 0, 160, 144)
@@ -77,8 +68,7 @@ $ ->
 
           for i in [0..500]
             cpu.executeOpcode()
+            
+          requestAnimationFrame step
 
-        setInterval doShit, 10
-
-
-
+        requestAnimationFrame step

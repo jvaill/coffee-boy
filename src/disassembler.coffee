@@ -12,6 +12,20 @@ class Disassembler
 
     @LoadCode buffer
 
+  FormattedDisassembly: ->
+    formattedDisassembly = []
+    
+    for address in [0...@disassembly.length]
+      mnemonic = @disassembly[address]
+
+      if mnemonic?
+        formattedDisassembly.push {
+          address:  address
+          mnemonic: mnemonic
+        }
+
+    formattedDisassembly
+
   LoadCode: (@buffer) ->
     @reset()
     @disassemble()
