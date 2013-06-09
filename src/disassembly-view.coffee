@@ -12,7 +12,8 @@ do ($ = jQuery) =>
     yStride:             null
     addressGutterLength: null
 
-    PC: null
+    PC:          null
+    breakpoints: null
 
     constructor: (element, disassembler) ->
       unless element?      then throw 'A containing element is required.'
@@ -21,15 +22,27 @@ do ($ = jQuery) =>
       @disassembly = disassembler.FormattedDisassembly()
 
       @$element = $(element).empty()
-      # Create a div to hold the current data view,
+      # Create a div to hold the current data view.
       @$data     = $('<div/>').appendTo(@$element)
       # Create a second div and overlay it to allow for scrolling.
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 
-      # Init
+      # Init.
       @reset()
       @disassemblyLengthChanged()
       @$scroller.scroll => @refresh()
+
+      # Breakpoints.
+      @$element.click (e) =>
+        # Get the line index for the current view.
+        lineIndex  = Math.floor(@$scroller.scrollTop() / @fontHeight)
+        # Add the index for the clicked line in the current view.
+        lineIndex += Math.floor((e.offsetY - @$scroller.scrollTop()) / @fontHeight)
+        # We can't combine these two operations because we need to call Math.floor() for each.
+
+        address = @disassembly[lineIndex].address
+        @toggleBreakpoint address
+        @refresh()
 
       @render 0
 
@@ -40,9 +53,16 @@ do ($ = jQuery) =>
       lineIndex = Math.floor(@$scroller.scrollTop() / @fontHeight)
       @render lineIndex
 
+    toggleBreakpoint: (address) ->
+      if @breakpoints[address]?
+        delete @breakpoints[address]
+      else
+        @breakpoints[address] = true
+
     reset: ->
-      width  = @$element.width()
-      height = @$element.height()
+      [width, height] = [@$element.width(), @$element.height()]
+      @PC          = null
+      @breakpoints = {}
 
       # Update container sizes.
       @$data.css(
@@ -94,9 +114,15 @@ do ($ = jQuery) =>
         lineAddress = padLeft(instruction.address.toString(16), '0', @addressGutterLength)
         
         line = "<span style='color: blue'>#{lineAddress}</span> #{instruction.mnemonic}"
+
         # Highlight the currently executing instruction.
         if @PC == instruction.address
           line = "<div style='background-color: LightBlue; display: inline-block; width: 100%'>#{line}</div>"
+
+        # Highlight breakpoints.
+        else if @breakpoints[instruction.address]
+          line = "<div style='background-color: Crimson; display: inline-block; width: 100%'>#{line}</div>"
+
         view.push line
 
       # Render.
