@@ -12,6 +12,8 @@ do ($ = jQuery) =>
     yStride:             null
     addressGutterLength: null
 
+    PC: null
+
     constructor: (element, disassembler) ->
       unless element?      then throw 'A containing element is required.'
       unless disassembler? then throw 'A disassembler is required.'
@@ -30,6 +32,9 @@ do ($ = jQuery) =>
       @$scroller.scroll => @refresh()
 
       @render 0
+
+    setPC: (@PC) ->
+      @refresh()
 
     refresh: ->
       lineIndex = Math.floor(@$scroller.scrollTop() / @fontHeight)
@@ -86,8 +91,13 @@ do ($ = jQuery) =>
       # Loop thru lines.
       for y in [0...@yStride]
         instruction = @disassembly[address + y]
-        lineAddress = padLeft(instruction.address.toString(16), '0', @addressGutterLength)        
-        view.push "<span style='color: blue'>#{lineAddress}</span> #{instruction.mnemonic}"
+        lineAddress = padLeft(instruction.address.toString(16), '0', @addressGutterLength)
+        
+        line = "<span style='color: blue'>#{lineAddress}</span> #{instruction.mnemonic}"
+        # Highlight the currently executing instruction.
+        if @PC == instruction.address
+          line = "<div style='background-color: LightBlue; display: inline-block; width: 100%'>#{line}</div>"
+        view.push line
 
       # Render.
       @$data.html view.join('<br/>')
