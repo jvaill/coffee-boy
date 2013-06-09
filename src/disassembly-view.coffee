@@ -118,13 +118,18 @@ do ($ = jQuery) =>
         
         line = "<span style='color: blue'>#{address}</span> #{instruction.mnemonic}"
 
-        # Highlight the currently executing instruction.
-        if @PC == instruction.address
-          line = "<div style='background-color: LightBlue; display: inline-block; width: 100%'>#{line}</div>"
+        color =
+          if @PC == instruction.address and @breakpoints[instruction.address]
+            'Khaki'
+          # Highlight the currently executing instruction.
+          else if @PC == instruction.address
+            'PowderBlue'
+          # Highlight breakpoints.
+          else if @breakpoints[instruction.address]
+            'Tomato'
 
-        # Highlight breakpoints.
-        else if @breakpoints[instruction.address]
-          line = "<div style='background-color: Crimson; display: inline-block; width: 100%'>#{line}</div>"
+        if color?
+          line = "<div style='background-color: #{color}; display: inline-block; width: 100%'>#{line}</div>"
 
         view.push line
 

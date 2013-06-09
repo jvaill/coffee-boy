@@ -161,6 +161,20 @@ class CPU
     @flags.N = 1
     @flags.H = if @memory[@regs[reg]()] & 0xF == 0xF  then 1 else 0
 
+  ADD_A_n: (reg) ->
+    @flags.N = 0
+    @flags.H = ((@regs.A & 0xF) + (@regs[reg] & 0xF)) & 0x10
+    @flags.C = if @regs.A + @regs[reg] > 0xFF then 1 else 0
+    @regs.A += @regs[reg] & 0xFF
+    @flags.Z = unless @regs.A then 1 else 0
+
+  ADD_A_RR: (reg) ->
+    @flags.N = 0
+    @flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]()] & 0xF)) & 0x10
+    @flags.C = if @regs.A + @memory[@regs[reg]()] > 0xFF then 1 else 0
+    @regs.A = (@regs.A + @memory[@regs[reg]()]) & 0xFF
+    @flags.Z = unless @regs.A then 1 else 0
+
   executeOpcode: ->
     opcode = @getUint8()
     unless opcode?
@@ -308,13 +322,19 @@ class CPU
 
       # CP (HL)
       when 0xBE
-        test = @regs.A - @regs.HL()
+        test = @regs.A - @memory[@regs.HL()]
         @flags.Z = unless test then 1 else 0
         @flags.N = 1
 
-
-
-
+      # ADD A, n
+      when 0x87 then @ADD_A_n('A')
+      when 0x80 then @ADD_A_n('B')
+      when 0x81 then @ADD_A_n('C')
+      when 0x82 then @ADD_A_n('D')
+      when 0x83 then @ADD_A_n('E')
+      when 0x84 then @ADD_A_n('H')
+      when 0x85 then @ADD_A_n('L')
+      when 0x86 then @ADD_A_RR('HL')
 
       # INC n
       when 0x3C then @INC_n('A')
@@ -336,9 +356,12 @@ class CPU
       when 0x2D then @DEC_n('L')
       when 0x35 then @DEC_RR('HL')
 
+      when 0x00 # NOP
+        console.log 'nop'
 
-
-
+      # JP nn
+      when 0xC3
+        @regs.PC = @getUint16()
 
       # # # # # #
       # Old implementations

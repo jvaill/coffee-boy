@@ -18,6 +18,21 @@ downloadBlob = (path, cb) ->
   xhr.open 'GET', path, true
   xhr.send()
 
+updateRegisters = ->
+  registers = ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'PC', 'SP']
+  pairs     = ['BC', 'DE', 'HL']
+
+  html = ''
+  for register in registers
+    value = cpu.regs[register].toString(16)
+    html += "<li>#{register}: $#{value}</li>"
+
+  for pair in pairs
+    value = cpu.regs[pair]().toString(16)
+    html += "<li>#{pair}: $#{value}</li>"
+
+  $('#registers').html(html)
+
 drawVideo = ->
   # Vblank available.
   cpu.memory[0xFF44] = 0x90
@@ -68,12 +83,14 @@ step = ->
 cpu = new CPU()
 
 $ ->
+  updateRegisters()
   $('#memory').hexView(cpu.memory)
 
   $('#step').click ->
     step()
     $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
     $('#memory').hexView('Refresh')
+    updateRegisters()
 
   $('#resume').click ->
     isPaused = !isPaused
@@ -83,6 +100,7 @@ $ ->
       $('#step').removeAttr('disabled')
       $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
       $('#memory').hexView('Refresh')
+      updateRegisters()
     else
       $(this).text('Pause')
       $('#step').attr('disabled', 'disabled')
@@ -90,17 +108,17 @@ $ ->
       step()
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-    # Disassemble.
-    disassembler = new Disassembler(blob)
-    $('#disassembly').disassemblyView(disassembler)
-    $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
-      cpu.breakpoints = breakpoints
-
     downloadBlob 'ROMS/ROM.gb', (blob2) ->
       # Append the rom after the BIOS.
       tmp = new Uint8Array(blob.byteLength + blob2.byteLength)
       tmp.set(blob, 0)
       tmp.set(blob2, blob.byteLength)
+
+      # Disassemble.
+      disassembler = new Disassembler(tmp)
+      $('#disassembly').disassemblyView(disassembler)
+      $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
+        cpu.breakpoints = breakpoints
 
       # Scrappy emulate.
       cpu.LoadCode tmp
