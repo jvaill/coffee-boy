@@ -4,29 +4,29 @@ class Disassembler
   codePaths:  null
   diassembly: null
 
-  constructor: (buffer) ->
-    unless buffer?
+  constructor: (@buffer) ->
+    unless @buffer?
       throw 'A buffer is required.'
-    unless buffer instanceof Uint8Array
+    unless @buffer instanceof Uint8Array
       throw 'Buffer must be of type Uint8Array.'
 
-    @LoadCode buffer
+    @loadCode buffer
 
-  FormattedDisassembly: ->
-    formattedDisassembly = []
+  Disassembly: ->
+    disassembly = []
     
     for address in [0...@disassembly.length]
       mnemonic = @disassembly[address]
 
       if mnemonic?
-        formattedDisassembly.push {
+        disassembly.push {
           address:  address
           mnemonic: mnemonic
         }
 
-    formattedDisassembly
+    disassembly
 
-  LoadCode: (@buffer) ->
+  loadCode: (@buffer) ->
     @reset()
     @disassemble()
 

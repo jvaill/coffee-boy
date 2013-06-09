@@ -19,7 +19,7 @@ do ($ = jQuery) =>
       unless element?      then throw 'A containing element is required.'
       unless disassembler? then throw 'A disassembler is required.'
 
-      @disassembly = disassembler.FormattedDisassembly()
+      @disassembly = disassembler.Disassembly()
 
       @$element = $(element).empty()
       # Create a div to hold the current data view.
@@ -28,41 +28,35 @@ do ($ = jQuery) =>
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 
       # Init.
-      @reset()
-      @disassemblyLengthChanged()
-      @$scroller.scroll => @refresh()
+      @Reset()
+      @DisassemblyLengthChanged()
+      @$scroller.scroll => @Refresh()
 
       # Breakpoints.
       @$element.click (e) =>
-        # Get the line index for the current view.
+        # Get the current view's starting index.
         lineIndex  = Math.floor(@$scroller.scrollTop() / @fontHeight)
-        # Add the index for the clicked line in the current view.
+        # Add the clicked line's index.
         lineIndex += Math.floor((e.offsetY - @$scroller.scrollTop()) / @fontHeight)
-        # We can't combine these two operations because we need to call Math.floor() for each.
+        # These two operations can't be combined because we need to call Math.floor() for each.
 
         address = @disassembly[lineIndex].address
         @toggleBreakpoint address
-        @refresh()
+        @Refresh()
 
-      @render 0
+      @Refresh()
 
-    setPC: (@PC) ->
-      @refresh()
+    SetPC: (@PC) ->
+      @Refresh()
 
-    refresh: ->
+    Refresh: ->
       lineIndex = Math.floor(@$scroller.scrollTop() / @fontHeight)
       @render lineIndex
 
-    toggleBreakpoint: (address) ->
-      if @breakpoints[address]?
-        delete @breakpoints[address]
-      else
-        @breakpoints[address] = true
-
-    getBreakpoints: (cb) ->
+    GetBreakpoints: (cb) ->
       cb? @breakpoints
 
-    reset: ->
+    Reset: ->
       [width, height] = [@$element.width(), @$element.height()]
       @PC          = null
       @breakpoints = {}
@@ -89,7 +83,7 @@ do ($ = jQuery) =>
       @addressGutterLength = maxMemoryAddress.length
 
     # Recalculates the scrollbar's length.
-    disassemblyLengthChanged: ->
+    DisassemblyLengthChanged: ->
       @$scroller.empty()
       # Create a scrollbar and set its height accordingly.
       scrollHeight = @disassembly.length * @fontHeight
@@ -105,18 +99,24 @@ do ($ = jQuery) =>
       $measure.remove()
       fontHeight
 
-    render: (address) ->
-      padLeft = (string, padString, length) ->
-        string = padString + string while string.length < length
+    toggleBreakpoint: (address) ->
+      if @breakpoints[address]?
+        delete @breakpoints[address]
+      else
+        @breakpoints[address] = true
+
+    render: (startIndex) ->
+      padLeft = (string, length) ->
+        string = "0#{string}" while string.length < length
         string
 
       view = []
       # Loop thru lines.
       for y in [0...@yStride]
-        instruction = @disassembly[address + y]
-        lineAddress = padLeft(instruction.address.toString(16), '0', @addressGutterLength)
+        instruction = @disassembly[startIndex + y]
+        address     = padLeft(instruction.address.toString(16), @addressGutterLength)
         
-        line = "<span style='color: blue'>#{lineAddress}</span> #{instruction.mnemonic}"
+        line = "<span style='color: blue'>#{address}</span> #{instruction.mnemonic}"
 
         # Highlight the currently executing instruction.
         if @PC == instruction.address

@@ -51,11 +51,12 @@ drawVideo = ->
 
 step = ->
   if isPaused
-    # Only execute one opcode in case user is stepping.
+    # Step one opcode at a time when paused.
     cpu.executeOpcode()
   else
     for i in [0..500]
       unless cpu.executeOpcode()
+        # Breakpoint reached.
         $('#resume').click()
         break
 
@@ -71,8 +72,8 @@ $ ->
 
   $('#step').click ->
     step()
-    $('#disassembly').disassemblyView('setPC', cpu.regs.PC)
-    $('#memory').hexView('refresh')
+    $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+    $('#memory').hexView('Refresh')
 
   $('#resume').click ->
     isPaused = !isPaused
@@ -80,20 +81,20 @@ $ ->
     if isPaused
       $(this).text('Resume')
       $('#step').removeAttr('disabled')
-      $('#disassembly').disassemblyView('setPC', cpu.regs.PC)
-      $('#memory').hexView('refresh')
+      $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+      $('#memory').hexView('Refresh')
     else
       $(this).text('Pause')
       $('#step').attr('disabled', 'disabled')
-      $('#disassembly').disassemblyView('setPC', null)
-      $('#disassembly').disassemblyView 'getBreakpoints', (breakpoints) ->
-        cpu.breakpoints = breakpoints
+      $('#disassembly').disassemblyView('SetPC', null)
       step()
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
     # Disassemble.
     disassembler = new Disassembler(blob)
     $('#disassembly').disassemblyView(disassembler)
+    $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
+      cpu.breakpoints = breakpoints
 
     downloadBlob 'ROMS/ROM.gb', (blob2) ->
       # Append the rom after the BIOS.
@@ -103,5 +104,5 @@ $ ->
 
       # Scrappy emulate.
       cpu.LoadCode tmp
-      $('#disassembly').disassemblyView('setPC', cpu.regs.PC)
-      $('#memory').hexView('refresh')
+      $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+      $('#memory').hexView('Refresh')

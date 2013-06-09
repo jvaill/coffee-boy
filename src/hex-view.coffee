@@ -21,26 +21,25 @@ do ($ = jQuery) =>
 
       @$element = $(element).empty()
 
-      # Create a div to hold the current data view,
+      # Create a div to hold the current data view.
       @$data     = $('<div/>').appendTo(@$element)
       # Create a second div and overlay it to allow for scrolling.
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 
-      # Init
-      @reset()
-      @bufferLengthChanged()
-      @$scroller.scroll => @refresh()
+      # Init.
+      @Reset()
+      @BufferLengthChanged()
+      @$scroller.scroll => @Refresh()
 
-      @render 0
+      @Refresh()
 
-    refresh: ->
+    Refresh: ->
       lineIndex = Math.floor(@$scroller.scrollTop() / @fontDimensions.height)
       address   = lineIndex * @bytesPerLine
       @render address
 
-    reset: ->
-      width  = @$element.width()
-      height = @$element.height()
+    Reset: ->
+      [width, height] = [@$element.width(), @$element.height()]
 
       # Update container sizes.
       @$data.css(
@@ -66,7 +65,7 @@ do ($ = jQuery) =>
       @bytesPerLine        = sizes.bytesPerLine
 
     # Recalculates the scrollbar's length.
-    bufferLengthChanged: ->
+    BufferLengthChanged: ->
       @$scroller.empty()
       # Create a scrollbar and set its height accordingly.
       scrollHeight = (Math.ceil(@buffer.length / @bytesPerLine) + 1) * @fontDimensions.height
@@ -114,8 +113,8 @@ do ($ = jQuery) =>
       { addressGutterLength: addressGutterLength, bytesPerLine: bytesPerLine }
 
     render: (address) ->
-      padLeft = (string, padString, length) ->
-        string = padString + string while string.length < length
+      padLeft = (string, length) ->
+        string = "0#{string}" while string.length < length
         string
 
       view = []
@@ -133,12 +132,12 @@ do ($ = jQuery) =>
           else
             byte = @buffer[lineAddress + x] ? '??'
             # Append the byte.
-            bytes.push padLeft(byte.toString(16), 0, 2)
+            bytes.push padLeft(byte.toString(16), 2)
             # Append the char if it falls within the printable ASCII range, otherwise append a dot.
             ascii += if byte >= 0x20 and byte <= 0x7E then String.fromCharCode(byte) else '.'
 
         # Append the line.
-        lineAddress = padLeft(lineAddress.toString(16), '0', @addressGutterLength)
+        lineAddress = padLeft(lineAddress.toString(16), @addressGutterLength)
         bytes       = bytes.join(' ')
         ascii       = ascii.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
