@@ -55,7 +55,9 @@ step = ->
     cpu.executeOpcode()
   else
     for i in [0..500]
-      cpu.executeOpcode()
+      unless cpu.executeOpcode()
+        $('#resume').click()
+        break
 
   drawVideo()
 
@@ -84,6 +86,8 @@ $ ->
       $(this).text('Pause')
       $('#step').attr('disabled', 'disabled')
       $('#disassembly').disassemblyView('setPC', null)
+      $('#disassembly').disassemblyView 'getBreakpoints', (breakpoints) ->
+        cpu.breakpoints = breakpoints
       step()
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->

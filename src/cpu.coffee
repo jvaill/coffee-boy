@@ -2,6 +2,7 @@ class CPU
   buffer: null
   flags:  null
   memory: null
+  breakpoints: null
 
   regs: {
     A: 0, B: 0, C: 0, D: 0, E: 0
@@ -543,6 +544,11 @@ class CPU
 
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
+
+    if @breakpoints?[@regs.PC]
+      return false
+    true
+
 
 
 window.CPU = CPU

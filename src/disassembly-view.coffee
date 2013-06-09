@@ -59,6 +59,9 @@ do ($ = jQuery) =>
       else
         @breakpoints[address] = true
 
+    getBreakpoints: (cb) ->
+      cb? @breakpoints
+
     reset: ->
       [width, height] = [@$element.width(), @$element.height()]
       @PC          = null
