@@ -35,7 +35,11 @@ updateRegisters = ->
 
 drawVideo = ->
   # Vblank available.
-  cpu.memory[0xFF44] = 0x90
+  # Different code looks at different scanlines. Hack.
+  if cpu.memory[0xFF44] == 0x91
+    cpu.memory[0xFF44] = 0x90
+  else
+    cpu.memory[0xFF44] = 0x91
 
   ctx = $('#canvas').get(0).getContext('2d')
   ctx.clearRect(0, 0, 160, 144)
@@ -109,10 +113,12 @@ $ ->
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
     downloadBlob 'ROMS/ROM.gb', (blob2) ->
+      ROM = new Uint8Array(blob2.buffer, 0x100, blob2.length - 0x100)
+
       # Append the rom after the BIOS.
-      tmp = new Uint8Array(blob.byteLength + blob2.byteLength)
+      tmp = new Uint8Array(blob.byteLength + ROM.byteLength)
       tmp.set(blob, 0)
-      tmp.set(blob2, blob.byteLength)
+      tmp.set(ROM, blob.byteLength)
 
       # Disassemble.
       disassembler = new Disassembler(tmp)

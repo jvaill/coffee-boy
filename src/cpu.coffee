@@ -26,9 +26,8 @@ class CPU
     @buffer = buffer
 
     # Kind of map the ROM where it belongs.
-    for i in [0...0xFF]
+    for i in [0...@buffer.byteLength]
       @memory[i] = @buffer[i]
-      @memory[i + 0xFF] = @buffer[i + 0xFF * 2 + 1]
 
     # @reset()
     @resume()
@@ -310,6 +309,9 @@ class CPU
       when 0xF0
         @regs.A = @memory[0xFF00 + @getUint8()]
 
+      # INC BC
+      when 0x03 then @INC_rr('B', 'C')
+
       # LD n, nn
       when 0x01 then @LD_n_nn('B', 'C')
       when 0x11 then @LD_n_nn('D', 'E')
@@ -325,6 +327,10 @@ class CPU
         test = @regs.A - @memory[@regs.HL()]
         @flags.Z = unless test then 1 else 0
         @flags.N = 1
+
+      # DI
+      when 0xF3
+        console.log 'DI'
 
       # ADD A, n
       when 0x87 then @ADD_A_n('A')
@@ -356,12 +362,38 @@ class CPU
       when 0x2D then @DEC_n('L')
       when 0x35 then @DEC_RR('HL')
 
+      # SUB n, A
+      when 0x97
+        @regs.A -= @regs.A
+
+      # AND #
+      when 0xE6
+        @regs.A = @regs.A & @getUint8()
+        @flags.Z = if @regs.A == 0 then 1 else 0
+        @flags.N = 0
+        @flags.H = 1
+        @flags.C = 0
+
       when 0x00 # NOP
         console.log 'nop'
+
+      # JP NZ, nn
+      when 0xC2
+        address = @getUint16()
+        unless @flags.Z
+          @regs.PC = address
 
       # JP nn
       when 0xC3
         @regs.PC = @getUint16()
+      
+      # RLCA
+      when 0x07
+        @regs.A = @regs.A << 1
+        @flags.C = if @regs.A & 0x100 then 1 else 0
+        @regs.A = @regs.A & 0xFF
+        @flags.N = 0
+        @flags.H = 0
 
       # # # # # #
       # Old implementations
@@ -480,6 +512,15 @@ class CPU
         @regs.B = @memory[@regs.SP + 2]
         @regs.SP += 2
 
+      when 0x9
+        console.log 'implement me'
+      when 0xD5
+        console.log 'implement me'
+      when 0x19
+        console.log 'implement me'
+      when 0xD1
+        console.log 'implement me'
+
       # DEC B
       when 0x05
         @regs.B--
@@ -524,6 +565,12 @@ class CPU
       when 0xC9
         @regs.PC = (@memory[@regs.SP + 2] << 8) + @memory[@regs.SP + 1]
         @regs.SP += 2
+
+      # RET NC
+      when 0xD0
+        unless @flags.C
+          @regs.PC = (@memory[@regs.SP + 2] << 8) + @memory[@regs.SP + 1]
+          @regs.SP += 2
 
       # LD A, E
       when 0x7B

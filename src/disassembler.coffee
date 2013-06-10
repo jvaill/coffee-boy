@@ -185,10 +185,6 @@ class Disassembler
   SRL_n:  (reg) -> "SRL #{reg}"
 
   decodeOpcode: ->
-    if @PC == 0x100
-      console.log @buffer
-      console.log @buffer[0x100].toString(16)
-
     opcode = @getUint8()
     unless opcode?
       return { end: true }
@@ -651,7 +647,7 @@ class Disassembler
             mnemonic
 
       else
-        throw "Unknown opcode: 0x#{opcode.toString(16)}"
+       throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
 
 window.Disassembler = Disassembler
