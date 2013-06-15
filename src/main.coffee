@@ -19,17 +19,17 @@ downloadBlob = (path, cb) ->
   xhr.send()
 
 updateRegisters = ->
-  registers = ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'PC', 'SP']
-  pairs     = ['BC', 'DE', 'HL']
+  registers = [
+    'A', 'B', 'C', 'D', 'E',
+    'H', 'L',
+    'PC', 'SP',
+    'BC', 'DE', 'HL'
+  ]
 
   html = ''
   for register in registers
     value = cpu.regs[register].toString(16)
     html += "<li>#{register}: $#{value}</li>"
-
-  for pair in pairs
-    value = cpu.regs[pair]().toString(16)
-    html += "<li>#{pair}: $#{value}</li>"
 
   $('#registers').html(html)
 

@@ -1,20 +1,28 @@
+objectWithProperties = (obj) ->
+  if obj.properties
+    Object.defineProperties obj, obj.properties
+    delete obj.properties
+  obj
+
 class CPU
   buffer: null
   flags:  null
   memory: null
   breakpoints: null
 
-  regs: {
+  regs: objectWithProperties
     A: 0, B: 0, C: 0, D: 0, E: 0
     H: 0, L: 0
     F: 0
     PC: 0, SP: 0
 
-    # TODO: Investigate getters.
-    BC: -> (@B << 8) + @C
-    DE: -> (@D << 8) + @E
-    HL: -> (@H << 8) + @L
-  }
+    properties:
+      BC:
+        get: -> (@B << 8) + @C
+      DE:
+        get: -> (@D << 8) + @E
+      HL:
+        get: -> (@H << 8) + @L
 
   constructor: ->
     @reset()
@@ -30,7 +38,6 @@ class CPU
       @memory[i] = @buffer[i]
 
     # @reset()
-    @resume()
 
   reset: ->
     # Reset registers.
@@ -69,14 +76,6 @@ class CPU
     # Order matters
     @getInt8() + @regs.PC
 
-  resume: ->
-    unless @buffer?
-      throw 'Code must be loaded using Debugger.LoadCode() first.'
-
-    # Temporary
-    # while @booya != 10
-    #   @executeOpcode()
-
   DEC_rr: (reg, reg2) ->
     @regs[reg2] = (@regs[reg2] - 1) & 0xFF
     if @regs[reg2] == 0xFF
@@ -103,16 +102,16 @@ class CPU
     @regs[reg] = @regs[reg2]
 
   LD_r_RR: (reg, reg2) ->
-    @regs[reg] = @memory[@regs[reg2]()]
+    @regs[reg] = @memory[@regs[reg2]]
 
   LD_RR_r: (reg, reg2) ->
-    @memory[@regs[reg]()] = @regs[reg2]
+    @memory[@regs[reg]] = @regs[reg2]
 
   LD_A_n: (reg) ->
     @regs.A = @regs[reg]
 
   LD_A_RR: (reg) ->
-    @regs.A = @memory[@regs[reg]()]
+    @regs.A = @memory[@regs[reg]]
 
   LD_A_NN: (reg) ->
     @regs.A = @memory[@getUint16()]
@@ -124,7 +123,7 @@ class CPU
     @regs[reg] = @regs.A
 
   LD_RR_A: (reg) ->
-    @memory[@regs[reg]()] = @regs.A
+    @memory[@regs[reg]] = @regs.A
 
   LD_NN_A: ->
     @memory[@getUint16()] = @regs.A
@@ -143,10 +142,10 @@ class CPU
     @flags.H = unless @regs[reg] & 0xF then 1 else 0
 
   INC_RR: (reg) ->
-    @memory[@regs[reg]()] = (@memory[@regs[reg]()] + 1) & 0xFF
-    @flags.Z = unless @memory[@regs[reg]()] then 1 else 0
+    @memory[@regs[reg]] = (@memory[@regs[reg]] + 1) & 0xFF
+    @flags.Z = unless @memory[@regs[reg]] then 1 else 0
     @flags.N = 0
-    @flags.H = unless @memory[@regs[reg]()] & 0xF then 1 else 0
+    @flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
 
   DEC_n: (reg) ->
     @regs[reg] = (@regs[reg] - 1) & 0xFF
@@ -155,10 +154,10 @@ class CPU
     @flags.H = if @regs[reg] & 0xF == 0xF  then 1 else 0
 
   DEC_RR: (reg) ->
-    @memory[@regs[reg]()] = (@memory[@regs[reg]()] - 1) & 0xFF
-    @flags.Z = unless @memory[@regs[reg]()] then 1 else 0
+    @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
+    @flags.Z = unless @memory[@regs[reg]] then 1 else 0
     @flags.N = 1
-    @flags.H = if @memory[@regs[reg]()] & 0xF == 0xF  then 1 else 0
+    @flags.H = if @memory[@regs[reg]] & 0xF == 0xF  then 1 else 0
 
   ADD_A_n: (reg) ->
     @flags.N = 0
@@ -169,9 +168,9 @@ class CPU
 
   ADD_A_RR: (reg) ->
     @flags.N = 0
-    @flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]()] & 0xF)) & 0x10
-    @flags.C = if @regs.A + @memory[@regs[reg]()] > 0xFF then 1 else 0
-    @regs.A = (@regs.A + @memory[@regs[reg]()]) & 0xFF
+    @flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]] & 0xF)) & 0x10
+    @flags.C = if @regs.A + @memory[@regs[reg]] > 0xFF then 1 else 0
+    @regs.A = (@regs.A + @memory[@regs[reg]]) & 0xFF
     @flags.Z = unless @regs.A then 1 else 0
 
   executeOpcode: ->
@@ -283,22 +282,22 @@ class CPU
 
       # LDD A, (HL)
       when 0x3A
-        @regs.A = @memory[@regs.HL()]
+        @regs.A = @memory[@regs.HL]
         @DEC_rr('H', 'L')
 
       # LDD (HL), A
       when 0x32
-        @memory[@regs.HL()] = @regs.A
+        @memory[@regs.HL] = @regs.A
         @DEC_rr('H', 'L')
 
       # LDI A, (HL)
       when 0x2A
-        @regs.A = @memory[@regs.HL()]
+        @regs.A = @memory[@regs.HL]
         @INC_rr('H', 'L')
 
       # LDI (HL), A
       when 0x22
-        @memory[@regs.HL()] = @regs.A
+        @memory[@regs.HL] = @regs.A
         @INC_rr('H', 'L')
 
       # LDH (n), A
@@ -320,11 +319,11 @@ class CPU
 
       # LD SP, HL
       when 0xF9
-        @regs.SP = @regs.HL()
+        @regs.SP = @regs.HL
 
       # CP (HL)
       when 0xBE
-        test = @regs.A - @memory[@regs.HL()]
+        test = @regs.A - @memory[@regs.HL]
         @flags.Z = unless test then 1 else 0
         @flags.N = 1
 
