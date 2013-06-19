@@ -66,7 +66,7 @@ class CPU
   # Unsigned
 
   getUint8: ->
-    @buffer[@regs.PC++]
+    @memory[@regs.PC++]
 
   getUint16: ->
     @getUint8() + (@getUint8() << 8)
@@ -312,6 +312,55 @@ class CPU
 
     @regs.A = (@regs.A + n) & 0xFF
 
+  OR_r: (reg) ->
+    @regs.A |= @regs[reg]
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+  OR_R: (reg) ->
+    @regs.A |= @memory[@regs[reg]]
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+  OR_imm: ->
+    @regs.A |= @getUint8()
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+  XOR_r: (reg) ->
+    @regs.A ^= @regs[reg]
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+  XOR_R: (reg) ->
+    @regs.A ^= @memory[@regs[reg]]
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+  XOR_imm: ->
+    @regs.A ^= @getUint8()
+
+    @flags.Z = unless @regs.A then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = 0
+
+
   executeOpcode: ->
     opcode = @getUint8()
     unless opcode?
@@ -476,8 +525,27 @@ class CPU
       when 0x8E then @ADC_A_R('HL')
       when 0xCE then @ADC_A_imm()
 
+      # OR n
+      when 0xB7 then @OR_r('A')
+      when 0xB0 then @OR_r('B')
+      when 0xB1 then @OR_r('C')
+      when 0xB2 then @OR_r('D')
+      when 0xB3 then @OR_r('E')
+      when 0xB4 then @OR_r('H')
+      when 0xB5 then @OR_r('L')
+      when 0xB6 then @OR_R('HL')
+      when 0xF6 then @OR_imm()
 
-
+      # XOR n
+      when 0xAF then @XOR_r('A')
+      when 0xA8 then @XOR_r('B')
+      when 0xA9 then @XOR_r('C')
+      when 0xAA then @XOR_r('D')
+      when 0xAB then @XOR_r('E')
+      when 0xAC then @XOR_r('H')
+      when 0xAD then @XOR_r('L')
+      when 0xAE then @XOR_R('HL')
+      when 0xEE then @XOR_imm()
 
       # INC BC
       when 0x03 then @INC_rr('B', 'C')
@@ -539,6 +607,10 @@ class CPU
       # JP nn
       when 0xC3
         @regs.PC = @getUint16()
+
+      # JP (HL)
+      when 0xE9
+        @regs.PC = @regs.HL
       
       # RLCA
       when 0x07
@@ -595,6 +667,15 @@ class CPU
         @memory[@regs.SP - 1] = @regs.PC & 0xFF
         @regs.SP -= 2
         @regs.PC = address
+
+      # CALL NZ, nn
+      when 0xC4
+        address = @getUint16()
+        unless @flags.Z
+          @memory[@regs.SP] = @regs.PC >> 8
+          @memory[@regs.SP - 1] = @regs.PC & 0xFF
+          @regs.SP -= 2
+          @regs.PC = address
 
       # RLA
       when 0x17
