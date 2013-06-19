@@ -225,7 +225,7 @@ class CPU
     @flags.Z = 0
     @flags.N = 0
     @flags.H = if ((@regs.SP & 0x800) + n) & 0x1000 then 1 else 0 # Bit 11 to 12
-    @flags.C = if (@regs.SP + n) & 0x1000 then 1 else 0           # Bit 15 to 16
+    @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
 
     @regs.HL = (@regs.SP + n) & 0xFFFF
 
@@ -268,6 +268,42 @@ class CPU
 
   ADD_A_imm: ->
     n = @getUint8()
+
+    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @flags.N = 0
+    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+
+    @regs.A = (@regs.A + n) & 0xFF
+
+  ADC_A_r: (reg) ->
+    n  = @regs[reg]
+    n += if @flags.C then 1 else 0
+    n &= 0xFF
+
+    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @flags.N = 0
+    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+
+    @regs.A = (@regs.A + n) & 0xFF
+
+  ADC_A_R: (reg) ->
+    n  = @memory[@regs[reg]]
+    n += if @flags.C then 1 else 0
+    n &= 0xFF
+
+    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @flags.N = 0
+    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+
+    @regs.A = (@regs.A + n) & 0xFF
+
+  ADC_A_imm: ->
+    n  = @getUint8()
+    n += if @flags.C then 1 else 0
+    n &= 0xFF
 
     @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
     @flags.N = 0
@@ -429,6 +465,16 @@ class CPU
       when 0x86 then @ADD_A_R('HL')
       when 0xC6 then @ADD_A_imm()
 
+      # ADC A, n
+      when 0x8F then @ADC_A_r('A')
+      when 0x88 then @ADC_A_r('B')
+      when 0x89 then @ADC_A_r('C')
+      when 0x8A then @ADC_A_r('D')
+      when 0x8B then @ADC_A_r('E')
+      when 0x8C then @ADC_A_r('H')
+      when 0x8D then @ADC_A_r('L')
+      when 0x8E then @ADC_A_R('HL')
+      when 0xCE then @ADC_A_imm()
 
 
 
@@ -560,13 +606,24 @@ class CPU
         @flags.Z = if @regs.A == 0 then 1 else 0
 
       when 0x9
-        console.log 'implement me'
-      when 0xD5
-        console.log 'implement me'
+        n = @regs.BC
+
+        @flags.Z = 0
+        @flags.N = 0
+        @flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
+        @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
+
+        @regs.HL = (@regs.HL + n) & 0xFFFF
+
       when 0x19
-        console.log 'implement me'
-      when 0xD1
-        console.log 'implement me'
+        n = @regs.DE
+
+        @flags.Z = 0
+        @flags.N = 0
+        @flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
+        @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
+
+        @regs.HL = (@regs.HL + n) & 0xFFFF
 
       # DEC B
       when 0x05
