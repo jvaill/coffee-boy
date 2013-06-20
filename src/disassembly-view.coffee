@@ -15,11 +15,9 @@ do ($ = jQuery) =>
     PC:          null
     breakpoints: null
 
-    constructor: (element, disassembler) ->
+    constructor: (element, @disassembler) ->
       unless element?      then throw 'A containing element is required.'
-      unless disassembler? then throw 'A disassembler is required.'
-
-      @disassembly = disassembler.Disassembly()
+      unless @disassembler? then throw 'A disassembler is required.'
 
       @$element = $(element).empty()
       # Create a div to hold the current data view.
@@ -57,6 +55,8 @@ do ($ = jQuery) =>
       cb? @breakpoints
 
     Reset: ->
+      @disassembly = @disassembler.Disassembly()
+
       [width, height] = [@$element.width(), @$element.height()]
       @PC          = null
       @breakpoints = {}
@@ -84,6 +84,9 @@ do ($ = jQuery) =>
 
     # Recalculates the scrollbar's length.
     DisassemblyLengthChanged: ->
+      @disassembly = @disassembler.Disassembly()
+      console.log @disassembly
+
       @$scroller.empty()
       # Create a scrollbar and set its height accordingly.
       scrollHeight = @disassembly.length * @fontHeight

@@ -32,10 +32,14 @@ class Disassembler
 
   reset: ->
     @PC          = 0
-    @codePaths   = []
+    @codePaths   = [0]
     @disassembly = []
 
   disassemble: ->
+    @PC = @codePaths.pop()
+    console.log @PC.toString(16)
+    return unless @PC?
+
     # Store the PC before the instruction is fetched.
     PC = @PC
 

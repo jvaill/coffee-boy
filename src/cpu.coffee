@@ -97,6 +97,16 @@ class CPU
     if !@regs[reg2]
       @regs[reg] = (@regs[reg] + 1) & 0xFF
 
+  doDiff: ->
+    if @disassembler? and !@disassembler.disassembly[@regs.PC]?
+      @disassembler.buffer = @memory;
+      @disassembler.trackCodeAtAddress @regs.PC
+      @disassembler.disassemble()
+
+      @something()
+      return false
+    true
+
   # Opcodes are gathered from:
   #   - http://meatfighter.com/gameboy/GBCPUman.pdf
   #   - http://imrannazar.com/Gameboy-Z80-Opcode-Map
@@ -360,6 +370,63 @@ class CPU
     @flags.H = 0
     @flags.C = 0
 
+  SUB_r: (reg) ->
+    n = @regs.A - @regs[reg]
+
+    @flags.Z = unless n & 0xFF then 1 else 0
+    @flags.N = 1
+    @flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
+    @flags.C = if @regs.A < @regs[reg] then 1 else 0
+
+    @regs.A = (@regs.A - @regs[reg]) & 0xFF
+
+  SUB_imm: ->
+    n = @getUint8()
+
+    @flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
+    @flags.N = 1
+    @flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
+    @flags.C = if @regs.A < n then 1 else 0
+
+    @regs.A = (@regs.A - n) & 0xFF
+
+  SBC_A_r: (reg) ->
+    toSub = @regs[reg] + if @flags.C then 1 else 0
+
+    n = @regs.A - toSub
+
+    @flags.Z = unless n & 0xFF then 1 else 0
+    @flags.N = 1
+    @flags.H = if (@regs.A & 0xF) < (toSub & 0xF) then 1 else 0
+    @flags.C = if @regs.A < toSub then 1 else 0
+
+    @regs.A = (@regs.A - toSub) & 0xFF
+
+  SBC_A_imm: ->
+    n = @getUint8()
+    n += if @flags.C then 1 else 0
+
+    @flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
+    @flags.N = 1
+    @flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
+    @flags.C = if @regs.A < n then 1 else 0
+
+    @regs.A = (@regs.A - n) & 0xFF
+
+  SRL_r: (reg) ->
+    @flags.Z = unless @regs[reg] then 1 else 0
+    @flags.N = 0
+    @flags.H = 0
+    @flags.C = @regs[reg] & 1
+    @regs[reg] = @regs[reg] >> 1
+
+  RR_r: (reg) ->
+    newC = @regs[reg] & 1
+    @flags.N = 0
+    @flags.H = 0
+    @regs[reg] = ((@regs[reg] >> 1) + @flags.C) & 0xFF
+    @flags.C = newC
+    @flags.Z = if @regs[reg] == 0 then 1 else 0
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -368,6 +435,8 @@ class CPU
 
 
     switch opcode
+
+      when 0x1F then @RR_r('A')
 
       # LD nn, n
       when 0x06 then @LD_r_n('B')
@@ -525,6 +594,28 @@ class CPU
       when 0x8E then @ADC_A_R('HL')
       when 0xCE then @ADC_A_imm()
 
+      # SUB n
+      when 0x97 then @SUB_r('A')
+      when 0x90 then @SUB_r('B')
+      when 0x91 then @SUB_r('C')
+      when 0x92 then @SUB_r('D')
+      when 0x93 then @SUB_r('E')
+      when 0x94 then @SUB_r('H')
+      when 0x95 then @SUB_r('L')
+      when 0x96 then @SUB_r('HL')
+      when 0xD6 then @SUB_imm()
+
+      # SBC A, n
+      when 0x9F then @SBC_A_r('A')
+      when 0x98 then @SBC_A_r('B')
+      when 0x99 then @SBC_A_r('C')
+      when 0x9A then @SBC_A_r('D')
+      when 0x9B then @SBC_A_r('E')
+      when 0x9C then @SBC_A_r('H')
+      when 0x9D then @SBC_A_r('L')
+      when 0x9E then @SBC_A_r('HL')
+      when 0xDE then @SBC_A_imm()
+
       # OR n
       when 0xB7 then @OR_r('A')
       when 0xB0 then @OR_r('B')
@@ -598,19 +689,29 @@ class CPU
       when 0x00 # NOP
         console.log 'nop'
 
+      # JR NC, n
+      when 0x30
+        address = @getRelInt8JmpAddress()
+        unless @flags.C
+          @regs.PC = address
+          return false unless @doDiff()
+
       # JP NZ, nn
       when 0xC2
         address = @getUint16()
         unless @flags.Z
           @regs.PC = address
+          return false unless @doDiff()
 
       # JP nn
       when 0xC3
         @regs.PC = @getUint16()
+        return false unless @doDiff()
 
       # JP (HL)
       when 0xE9
         @regs.PC = @regs.HL
+        return false unless @doDiff()
       
       # RLCA
       when 0x07
@@ -638,16 +739,20 @@ class CPU
         address = @getRelInt8JmpAddress()
         unless @flags.Z
           @regs.PC = address
+          return false unless @doDiff()
+
 
       # JR Z, *
       when 0x28
         address = @getRelInt8JmpAddress()
         if @flags.Z
           @regs.PC = address
+          return false unless @doDiff()
 
       # JR n
       when 0x18
         @regs.PC = @getRelInt8JmpAddress()
+        return false unless @doDiff()
 
       # SUB B
       when 0x90
@@ -663,19 +768,17 @@ class CPU
       # CALL nn
       when 0xCD
         address = @getUint16()
-        @memory[@regs.SP] = @regs.PC >> 8
-        @memory[@regs.SP - 1] = @regs.PC & 0xFF
-        @regs.SP -= 2
+        @PUSH_r('PC')
         @regs.PC = address
+        return false unless @doDiff()
 
       # CALL NZ, nn
       when 0xC4
         address = @getUint16()
         unless @flags.Z
-          @memory[@regs.SP] = @regs.PC >> 8
-          @memory[@regs.SP - 1] = @regs.PC & 0xFF
-          @regs.SP -= 2
+          @PUSH_r('PC')
           @regs.PC = address
+          return false unless @doDiff()
 
       # RLA
       when 0x17
@@ -741,14 +844,14 @@ class CPU
 
       # RET
       when 0xC9
-        @regs.PC = (@memory[@regs.SP + 2] << 8) + @memory[@regs.SP + 1]
-        @regs.SP += 2
+        @POP_r('PC')
+        return false unless @doDiff()
 
       # RET NC
       when 0xD0
         unless @flags.C
-          @regs.PC = (@memory[@regs.SP + 2] << 8) + @memory[@regs.SP + 1]
-          @regs.SP += 2
+          @POP_r('PC')
+          return false unless @doDiff()
 
       # CP #
       when 0xFE
@@ -778,6 +881,27 @@ class CPU
             @regs.C = ((@regs.C << 1) + @flags.C) & 0xFF
             @flags.C = newC
             @flags.Z = if @regs.C == 0 then 1 else 0
+
+
+          # RR n
+          when 0x1F then @RR_r('A')
+          when 0x18 then @RR_r('B')
+          when 0x19 then @RR_r('C')
+          when 0x1A then @RR_r('D')
+          when 0x1B then @RR_r('E')
+          when 0x1C then @RR_r('H')
+          when 0x1D then @RR_r('L')
+          when 0x1E then @RR_r('HL')
+
+          # SRL n
+          when 0x3F then @SRL_r('A')
+          when 0x38 then @SRL_r('B')
+          when 0x39 then @SRL_r('C')
+          when 0x3A then @SRL_r('D')
+          when 0x3B then @SRL_r('E')
+          when 0x3C then @SRL_r('H')
+          when 0x3D then @SRL_r('L')
+          when 0x3E then @SRL_r('HL')
 
           else
             throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"

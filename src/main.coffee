@@ -43,7 +43,7 @@ drawVideo = ->
 
   ctx = $('#canvas').get(0).getContext('2d')
   ctx.clearRect(0, 0, 160, 144)
-  ctx.fillStyle = "black"
+  ctx.fillStyle = "red"
 
   drawTile = (tileIndex, x, y) ->
     y += cpu.memory[0xFF42]
@@ -122,7 +122,11 @@ $ ->
 
       # Disassemble.
       disassembler = new Disassembler(tmp)
+      cpu.disassembler = disassembler
       $('#disassembly').disassemblyView(disassembler)
+      cpu.something = =>
+        console.log 'boom'
+        $('#disassembly').disassemblyView 'DisassemblyLengthChanged'
       $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
         cpu.breakpoints = breakpoints
 
