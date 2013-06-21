@@ -193,7 +193,7 @@ class CPU
     @regs[reg] = @memory[@regs[reg2]]
 
   LD_R_r2: (reg, reg2) ->
-    @memory[@regs[reg]] = @memory[reg2]
+    @memory[@regs[reg]] = @regs[reg2]
 
   LD_A_r: (reg) ->
     @regs.A = @regs[reg]
@@ -414,8 +414,6 @@ class CPU
   SBC_A_r: (reg) ->
     toSub = @regs[reg] + if @regs.flags.C then 1 else 0
 
-    n = @regs.A - toSub
-
     @regs.flags.Z = unless n & 0xFF then 1 else 0
     @regs.flags.N = 1
     @regs.flags.H = if (@regs.A & 0xF) < (toSub & 0xF) then 1 else 0
@@ -435,24 +433,24 @@ class CPU
     @regs.A = (@regs.A - n) & 0xFF
 
   SRL_r: (reg) ->
-    @regs.flags.Z = unless @regs[reg] then 1 else 0
     @regs.flags.N = 0
     @regs.flags.H = 0
     @regs.flags.C = @regs[reg] & 1
     @regs[reg] = @regs[reg] >> 1
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
 
   RR_r: (reg) ->
     newC = @regs[reg] & 1
     @regs.flags.N = 0
     @regs.flags.H = 0
-    @regs[reg] = ((@regs[reg] >> 1) + @regs.flags.C) & 0xFF
+    @regs[reg] = ((@regs[reg] >> 1) + (@regs.flags.C << 7)) & 0xFF
     @regs.flags.C = newC
     @regs.flags.Z = if @regs[reg] == 0 then 1 else 0
 
   ADD_HL_r: (reg) ->
     @regs.flags.N = 0
-    @regs.flags.H = if (@regs.HL + @regs[reg]) & 0x800 then 1 else 0
-    @regs.flags.C = if ((@regs.HL & 0x7FF) + (@regs[reg] & 0x7FF)) & 0x8000 then 1 else 0
+    @regs.flags.C = if (@regs.HL + @regs[reg]) & 0x800 then 1 else 0
+    @regs.flags.H = if ((@regs.HL & 0x7FF) + (@regs[reg] & 0x7FF)) & 0x8000 then 1 else 0
     @regs.HL = (@regs.HL + @regs[reg]) & 0xFFFF
 
   SWAP_r: (reg) ->
@@ -678,11 +676,34 @@ class CPU
       # INC BC
       when 0x03 then @INC_rr('B', 'C')
 
+      # DAA
+      when 0x27
+        boo = 1
+        # do nothing yet
+
+      # CP E
+      when 0xBB
+        n = @regs.A - @regs.E
+
+        @regs.flags.Z = unless n & 0xFF then 1 else 0
+        @regs.flags.N = 1
+        @regs.flags.H = if (@regs.A & 0xF) < (@regs.E & 0xF) then 1 else 0
+        @regs.flags.C = if @regs.A < @regs.E then 1 else 0
+
+      # CPL
+      when 0x2F
+        @regs.A ^= 0xFF
+        @regs.flags.N = 1
+        @regs.flags.H = 1
+
       # CP (HL)
       when 0xBE
-        test = @regs.A - @memory[@regs.HL]
-        @regs.flags.Z = unless test then 1 else 0
+        n = @regs.A - @memory[@regs.HL]
+
+        @regs.flags.Z = unless n & 0xFF then 1 else 0
         @regs.flags.N = 1
+        @regs.flags.H = if (@regs.A & 0xF) < (@memory[@regs.HL] & 0xF) then 1 else 0
+        @regs.flags.C = if @regs.A < @memory[@regs.HL] then 1 else 0
 
       # DI
       when 0xF3
@@ -716,10 +737,6 @@ class CPU
       when 0x19 then @ADD_HL_r('DE')
       when 0x29 then @ADD_HL_r('HL')
       when 0x39 then @ADD_HL_r('SP')
-
-      # SUB n, A
-      when 0x97
-        @regs.A -= @regs.A
 
       # AND #
       when 0xE6
@@ -762,14 +779,6 @@ class CPU
       when 0xE9
         @regs.PC = @regs.HL
         return false unless @doDiff()
-      
-      # RLCA
-      when 0x07
-        @regs.A = @regs.A << 1
-        @regs.flags.C = if @regs.A & 0x100 then 1 else 0
-        @regs.A = @regs.A & 0xFF
-        @regs.flags.N = 0
-        @regs.flags.H = 0
 
       # # # # # #
       # Old implementations
@@ -779,7 +788,7 @@ class CPU
       # XOR A
       when 0xAF
         @regs.A ^= @regs.A
-        @regs.flags.Z = @regs.A == 0
+        @regs.flags.Z = unless @regs.A then 1 else 0
         @regs.flags.N = 0
         @regs.flags.H = 0
         @regs.flags.C = 0
@@ -803,17 +812,6 @@ class CPU
       when 0x18
         @regs.PC = @getRelInt8JmpAddress()
         return false unless @doDiff()
-
-      # SUB B
-      when 0x90
-        @regs.A -= @regs.B
-
-      # INC C
-      when 0x0C
-        @regs.C++
-        @regs.flags.Z == @regs.C == 0
-        @regs.flags.N = 0
-        @regs.flags.H = ((@regs.C >> 3) & 1) == 1
 
       # CALL nn
       when 0xCD
@@ -839,58 +837,13 @@ class CPU
         @regs.flags.C = newC
         @regs.flags.Z = if @regs.A == 0 then 1 else 0
 
-      when 0x9
-        n = @regs.BC
-
-        @regs.flags.Z = 0
-        @regs.flags.N = 0
-        @regs.flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
-        @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
-
-        @regs.HL = (@regs.HL + n) & 0xFFFF
-
-      when 0x19
-        n = @regs.DE
-
-        @regs.flags.Z = 0
-        @regs.flags.N = 0
-        @regs.flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
-        @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
-
-        @regs.HL = (@regs.HL + n) & 0xFFFF
-
-      # DEC B
-      when 0x05
-        @regs.B--
-        @regs.flags.Z = if @regs.B == 0 then 1 else 0
-        @regs.flags.N = 1
-        #@regs.flags.H = ?? I don't understand this flag yet :)
-
-      # DEC A
-      when 0x3D
-        @regs.A--
-        @regs.flags.Z = if @regs.A == 0 then 1 else 0
-        @regs.flags.N = 1
-        #@regs.flags.H = ?? I don't understand this flag yet :)
-
-      # DEC C
-      when 0x0D
-        @regs.C--
-        @regs.flags.Z = if @regs.C == 0 then 1 else 0
-        @regs.flags.N = 1
-        #@regs.flags.H = ?? I don't understand this flag yet :)
-
-      # INC HL
+      # # INC HL
       when 0x23
-        @regs.L = (@regs.L + 1) & 255
-        if !@regs.L
-          @regs.H = (@regs.H + 1) & 255
+        @regs.HL++
 
-      # INC DE
+      # # INC DE
       when 0x13
-        @regs.E = (@regs.E + 1) & 255
-        if !@regs.E
-          @regs.D = (@regs.D + 1) & 255
+        @regs.DE++
 
       # RET
       when 0xC9
@@ -921,7 +874,7 @@ class CPU
         result = @regs.A - data
         @regs.flags.Z = if result == 0 then 1 else 0
         @regs.flags.N = 1
-        #flags.H ??
+        @regs.flags.H = if (@regs.A & 0xF) < (data & 0xF) then 1 else 0
         @regs.flags.C = if @regs.A < data then 1 else 0
 
       when 0xCB
