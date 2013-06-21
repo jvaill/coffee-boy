@@ -462,6 +462,14 @@ class CPU
     @regs.flags.H = 0
     @regs.flags.C = 0
 
+  CP_r: (reg) ->
+    n = @regs.A - @regs[reg]
+
+    @regs.flags.Z = unless n & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < @regs[reg] then 1 else 0
+
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -678,17 +686,39 @@ class CPU
 
       # DAA
       when 0x27
-        boo = 1
-        # do nothing yet
+        # Based on: http://forums.nesdev.com/viewtopic.php?t=9088
+        a = @regs.A
 
-      # CP E
-      when 0xBB
-        n = @regs.A - @regs.E
+        unless @regs.flags.N
+          if @regs.flags.H || (a & 0xF) > 9
+            a += 0x06
 
-        @regs.flags.Z = unless n & 0xFF then 1 else 0
-        @regs.flags.N = 1
-        @regs.flags.H = if (@regs.A & 0xF) < (@regs.E & 0xF) then 1 else 0
-        @regs.flags.C = if @regs.A < @regs.E then 1 else 0
+          if @regs.flags.C || (a > 0x9F)
+            a += 0x60
+        else
+          if @regs.flags.H
+            a = (a - 6) & 0xFF
+
+          if @regs.flags.C
+            a -= 0x60
+
+        if (a & 0x100) == 0x100
+          @regs.flags.C = 1
+        
+        @regs.flags.H = 0
+
+        a &= 0xFF
+        @regs.A = a
+        @regs.flags.Z = unless @regs.A then 1 else 0
+
+      # CP n
+      when 0xBF then @CP_r('A')
+      when 0xB8 then @CP_r('B')
+      when 0xB9 then @CP_r('C')
+      when 0xBA then @CP_r('D')
+      when 0xBB then @CP_r('E')
+      when 0xBC then @CP_r('H')
+      when 0xBD then @CP_r('L')
 
       # CPL
       when 0x2F
