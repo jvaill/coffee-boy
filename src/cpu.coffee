@@ -1,22 +1,43 @@
-objectWithProperties = (obj) ->
+objectWithProperties = (obj) =>
   if obj.properties
     Object.defineProperties obj, obj.properties
     delete obj.properties
   obj
 
 class CPU
+
   buffer: null
-  flags:  null
   memory: null
   breakpoints: null
 
   regs: objectWithProperties
+    flags:  {}
     A: 0, B: 0, C: 0, D: 0, E: 0
     H: 0, L: 0
-    F: 0
     PC: 0, SP: 0
 
     properties:
+      F:
+        get: ->
+          flags = 0
+          if @flags.Z then flags |= 0x80
+          if @flags.N then flags |= 0x40
+          if @flags.H then flags |= 0x20
+          if @flags.C then flags |= 0x10
+          flags
+
+        set: (value) ->
+          @flags.Z = if value & 0x80 then 1 else 0
+          @flags.N = if value & 0x40 then 1 else 0
+          @flags.H = if value & 0x20 then 1 else 0
+          @flags.C = if value & 0x10 then 1 else 0
+
+      AF:
+        get: -> (@A << 8) + @F
+        set: (value) ->
+          @F = value & 0xFF
+          @A = (value >> 8) & 0xFF
+
       BC:
         get: -> (@B << 8) + @C
         set: (value) ->
@@ -57,7 +78,7 @@ class CPU
 
     @memory = new Array(0xFFFF + 1)
 
-    @flags =
+    @regs.flags =
       Z: null
       N: null
       H: null
@@ -118,41 +139,41 @@ class CPU
 
   INC_n: (reg) ->
     @regs[reg] = (@regs[reg] + 1) & 0xFF
-    @flags.Z = unless @regs[reg] then 1 else 0
-    @flags.N = 0
-    @flags.H = unless @regs[reg] & 0xF then 1 else 0
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = unless @regs[reg] & 0xF then 1 else 0
 
   INC_RR: (reg) ->
     @memory[@regs[reg]] = (@memory[@regs[reg]] + 1) & 0xFF
-    @flags.Z = unless @memory[@regs[reg]] then 1 else 0
-    @flags.N = 0
-    @flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
+    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
 
   DEC_n: (reg) ->
     @regs[reg] = (@regs[reg] - 1) & 0xFF
-    @flags.Z = unless @regs[reg] then 1 else 0
-    @flags.N = 1
-    @flags.H = if @regs[reg] & 0xF == 0xF  then 1 else 0
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if @regs[reg] & 0xF == 0xF  then 1 else 0
 
   DEC_RR: (reg) ->
     @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
-    @flags.Z = unless @memory[@regs[reg]] then 1 else 0
-    @flags.N = 1
-    @flags.H = if @memory[@regs[reg]] & 0xF == 0xF  then 1 else 0
+    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if @memory[@regs[reg]] & 0xF == 0xF  then 1 else 0
 
   ADD_A_n: (reg) ->
-    @flags.N = 0
-    @flags.H = ((@regs.A & 0xF) + (@regs[reg] & 0xF)) & 0x10
-    @flags.C = if @regs.A + @regs[reg] > 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = ((@regs.A & 0xF) + (@regs[reg] & 0xF)) & 0x10
+    @regs.flags.C = if @regs.A + @regs[reg] > 0xFF then 1 else 0
     @regs.A += @regs[reg] & 0xFF
-    @flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   ADD_A_RR: (reg) ->
-    @flags.N = 0
-    @flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]] & 0xF)) & 0x10
-    @flags.C = if @regs.A + @memory[@regs[reg]] > 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]] & 0xF)) & 0x10
+    @regs.flags.C = if @regs.A + @memory[@regs[reg]] > 0xFF then 1 else 0
     @regs.A = (@regs.A + @memory[@regs[reg]]) & 0xFF
-    @flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
 
 
@@ -232,10 +253,10 @@ class CPU
   LDHL_SP_n: ->
     n = @getUint8()
 
-    @flags.Z = 0
-    @flags.N = 0
-    @flags.H = if ((@regs.SP & 0x800) + n) & 0x1000 then 1 else 0 # Bit 11 to 12
-    @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
+    @regs.flags.Z = 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.SP & 0x800) + n) & 0x1000 then 1 else 0 # Bit 11 to 12
+    @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
 
     @regs.HL = (@regs.SP + n) & 0xFFFF
 
@@ -259,174 +280,190 @@ class CPU
   ADD_A_r: (reg) ->
     n = @regs[reg]
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   ADD_A_R: (reg) ->
     n = @memory[@regs[reg]]
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   ADD_A_imm: ->
     n = @getUint8()
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   ADC_A_r: (reg) ->
     n  = @regs[reg]
-    n += if @flags.C then 1 else 0
+    n += if @regs.flags.C then 1 else 0
     n &= 0xFF
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   ADC_A_R: (reg) ->
     n  = @memory[@regs[reg]]
-    n += if @flags.C then 1 else 0
+    n += if @regs.flags.C then 1 else 0
     n &= 0xFF
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   ADC_A_imm: ->
     n  = @getUint8()
-    n += if @flags.C then 1 else 0
+    n += if @regs.flags.C then 1 else 0
     n &= 0xFF
 
-    @flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
-    @flags.N = 0
-    @flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
 
     @regs.A = (@regs.A + n) & 0xFF
 
   OR_r: (reg) ->
     @regs.A |= @regs[reg]
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   OR_R: (reg) ->
     @regs.A |= @memory[@regs[reg]]
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   OR_imm: ->
     @regs.A |= @getUint8()
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   XOR_r: (reg) ->
     @regs.A ^= @regs[reg]
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   XOR_R: (reg) ->
     @regs.A ^= @memory[@regs[reg]]
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   XOR_imm: ->
     @regs.A ^= @getUint8()
 
-    @flags.Z = unless @regs.A then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
   SUB_r: (reg) ->
     n = @regs.A - @regs[reg]
 
-    @flags.Z = unless n & 0xFF then 1 else 0
-    @flags.N = 1
-    @flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
-    @flags.C = if @regs.A < @regs[reg] then 1 else 0
+    @regs.flags.Z = unless n & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < @regs[reg] then 1 else 0
 
     @regs.A = (@regs.A - @regs[reg]) & 0xFF
 
   SUB_imm: ->
     n = @getUint8()
 
-    @flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
-    @flags.N = 1
-    @flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
-    @flags.C = if @regs.A < n then 1 else 0
+    @regs.flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < n then 1 else 0
 
     @regs.A = (@regs.A - n) & 0xFF
 
   SBC_A_r: (reg) ->
-    toSub = @regs[reg] + if @flags.C then 1 else 0
+    toSub = @regs[reg] + if @regs.flags.C then 1 else 0
 
     n = @regs.A - toSub
 
-    @flags.Z = unless n & 0xFF then 1 else 0
-    @flags.N = 1
-    @flags.H = if (@regs.A & 0xF) < (toSub & 0xF) then 1 else 0
-    @flags.C = if @regs.A < toSub then 1 else 0
+    @regs.flags.Z = unless n & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (toSub & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < toSub then 1 else 0
 
     @regs.A = (@regs.A - toSub) & 0xFF
 
   SBC_A_imm: ->
     n = @getUint8()
-    n += if @flags.C then 1 else 0
+    n += if @regs.flags.C then 1 else 0
 
-    @flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
-    @flags.N = 1
-    @flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
-    @flags.C = if @regs.A < n then 1 else 0
+    @regs.flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < n then 1 else 0
 
     @regs.A = (@regs.A - n) & 0xFF
 
   SRL_r: (reg) ->
-    @flags.Z = unless @regs[reg] then 1 else 0
-    @flags.N = 0
-    @flags.H = 0
-    @flags.C = @regs[reg] & 1
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = @regs[reg] & 1
     @regs[reg] = @regs[reg] >> 1
 
   RR_r: (reg) ->
     newC = @regs[reg] & 1
-    @flags.N = 0
-    @flags.H = 0
-    @regs[reg] = ((@regs[reg] >> 1) + @flags.C) & 0xFF
-    @flags.C = newC
-    @flags.Z = if @regs[reg] == 0 then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs[reg] = ((@regs[reg] >> 1) + @regs.flags.C) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = if @regs[reg] == 0 then 1 else 0
+
+  ADD_HL_r: (reg) ->
+    @regs.flags.N = 0
+    @regs.flags.H = if (@regs.HL + @regs[reg]) & 0x800 then 1 else 0
+    @regs.flags.C = if ((@regs.HL & 0x7FF) + (@regs[reg] & 0x7FF)) & 0x8000 then 1 else 0
+    @regs.HL = (@regs.HL + @regs[reg]) & 0xFFFF
+
+  SWAP_r: (reg) ->
+    tmp = @regs[reg] & 0xF
+    @regs[reg] = @regs[reg] >> 4
+    @regs[reg] |= (tmp << 4)
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -644,8 +681,8 @@ class CPU
       # CP (HL)
       when 0xBE
         test = @regs.A - @memory[@regs.HL]
-        @flags.Z = unless test then 1 else 0
-        @flags.N = 1
+        @regs.flags.Z = unless test then 1 else 0
+        @regs.flags.N = 1
 
       # DI
       when 0xF3
@@ -674,6 +711,12 @@ class CPU
 
       when 0xFB then console.log 'EI'
 
+      # ADD HL, n
+      when 0x09 then @ADD_HL_r('BC')
+      when 0x19 then @ADD_HL_r('DE')
+      when 0x29 then @ADD_HL_r('HL')
+      when 0x39 then @ADD_HL_r('SP')
+
       # SUB n, A
       when 0x97
         @regs.A -= @regs.A
@@ -681,10 +724,10 @@ class CPU
       # AND #
       when 0xE6
         @regs.A = @regs.A & @getUint8()
-        @flags.Z = if @regs.A == 0 then 1 else 0
-        @flags.N = 0
-        @flags.H = 1
-        @flags.C = 0
+        @regs.flags.Z = if @regs.A == 0 then 1 else 0
+        @regs.flags.N = 0
+        @regs.flags.H = 1
+        @regs.flags.C = 0
 
       when 0x00 # NOP
         console.log 'nop'
@@ -692,14 +735,21 @@ class CPU
       # JR NC, n
       when 0x30
         address = @getRelInt8JmpAddress()
-        unless @flags.C
+        unless @regs.flags.C
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # JR C, n
+      when 0x38
+        address = @getRelInt8JmpAddress()
+        if @regs.flags.C
           @regs.PC = address
           return false unless @doDiff()
 
       # JP NZ, nn
       when 0xC2
         address = @getUint16()
-        unless @flags.Z
+        unless @regs.flags.Z
           @regs.PC = address
           return false unless @doDiff()
 
@@ -716,10 +766,10 @@ class CPU
       # RLCA
       when 0x07
         @regs.A = @regs.A << 1
-        @flags.C = if @regs.A & 0x100 then 1 else 0
+        @regs.flags.C = if @regs.A & 0x100 then 1 else 0
         @regs.A = @regs.A & 0xFF
-        @flags.N = 0
-        @flags.H = 0
+        @regs.flags.N = 0
+        @regs.flags.H = 0
 
       # # # # # #
       # Old implementations
@@ -729,15 +779,15 @@ class CPU
       # XOR A
       when 0xAF
         @regs.A ^= @regs.A
-        @flags.Z = @regs.A == 0
-        @flags.N = 0
-        @flags.H = 0
-        @flags.C = 0
+        @regs.flags.Z = @regs.A == 0
+        @regs.flags.N = 0
+        @regs.flags.H = 0
+        @regs.flags.C = 0
 
       # JR NZ, *
       when 0x20
         address = @getRelInt8JmpAddress()
-        unless @flags.Z
+        unless @regs.flags.Z
           @regs.PC = address
           return false unless @doDiff()
 
@@ -745,7 +795,7 @@ class CPU
       # JR Z, *
       when 0x28
         address = @getRelInt8JmpAddress()
-        if @flags.Z
+        if @regs.flags.Z
           @regs.PC = address
           return false unless @doDiff()
 
@@ -761,9 +811,9 @@ class CPU
       # INC C
       when 0x0C
         @regs.C++
-        @flags.Z == @regs.C == 0
-        @flags.N = 0
-        @flags.H = ((@regs.C >> 3) & 1) == 1
+        @regs.flags.Z == @regs.C == 0
+        @regs.flags.N = 0
+        @regs.flags.H = ((@regs.C >> 3) & 1) == 1
 
       # CALL nn
       when 0xCD
@@ -775,7 +825,7 @@ class CPU
       # CALL NZ, nn
       when 0xC4
         address = @getUint16()
-        unless @flags.Z
+        unless @regs.flags.Z
           @PUSH_r('PC')
           @regs.PC = address
           return false unless @doDiff()
@@ -783,52 +833,52 @@ class CPU
       # RLA
       when 0x17
         newC= @regs.A >> 7
-        @flags.N = 0
-        @flags.H = 0
-        @regs.A = ((@regs.A << 1) + @flags.C) & 0xFF
-        @flags.C = newC
-        @flags.Z = if @regs.A == 0 then 1 else 0
+        @regs.flags.N = 0
+        @regs.flags.H = 0
+        @regs.A = ((@regs.A << 1) + @regs.flags.C) & 0xFF
+        @regs.flags.C = newC
+        @regs.flags.Z = if @regs.A == 0 then 1 else 0
 
       when 0x9
         n = @regs.BC
 
-        @flags.Z = 0
-        @flags.N = 0
-        @flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
-        @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
+        @regs.flags.Z = 0
+        @regs.flags.N = 0
+        @regs.flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
+        @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
 
         @regs.HL = (@regs.HL + n) & 0xFFFF
 
       when 0x19
         n = @regs.DE
 
-        @flags.Z = 0
-        @flags.N = 0
-        @flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
-        @flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
+        @regs.flags.Z = 0
+        @regs.flags.N = 0
+        @regs.flags.H = if ((@regs.SP & 0x800) + (n & 0x800)) & 0x1000 then 1 else 0 # Bit 11 to 12
+        @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
 
         @regs.HL = (@regs.HL + n) & 0xFFFF
 
       # DEC B
       when 0x05
         @regs.B--
-        @flags.Z = if @regs.B == 0 then 1 else 0
-        @flags.N = 1
-        #@flags.H = ?? I don't understand this flag yet :)
+        @regs.flags.Z = if @regs.B == 0 then 1 else 0
+        @regs.flags.N = 1
+        #@regs.flags.H = ?? I don't understand this flag yet :)
 
       # DEC A
       when 0x3D
         @regs.A--
-        @flags.Z = if @regs.A == 0 then 1 else 0
-        @flags.N = 1
-        #@flags.H = ?? I don't understand this flag yet :)
+        @regs.flags.Z = if @regs.A == 0 then 1 else 0
+        @regs.flags.N = 1
+        #@regs.flags.H = ?? I don't understand this flag yet :)
 
       # DEC C
       when 0x0D
         @regs.C--
-        @flags.Z = if @regs.C == 0 then 1 else 0
-        @flags.N = 1
-        #@flags.H = ?? I don't understand this flag yet :)
+        @regs.flags.Z = if @regs.C == 0 then 1 else 0
+        @regs.flags.N = 1
+        #@regs.flags.H = ?? I don't understand this flag yet :)
 
       # INC HL
       when 0x23
@@ -847,9 +897,21 @@ class CPU
         @POP_r('PC')
         return false unless @doDiff()
 
+      # RET Z
+      when 0xC8
+        if @regs.flags.Z
+          @POP_r('PC')
+          return false unless @doDiff()
+
+      # RET C
+      when 0xD8
+        if @regs.flags.C
+          @POP_r('PC')
+          return false unless @doDiff()
+
       # RET NC
       when 0xD0
-        unless @flags.C
+        unless @regs.flags.C
           @POP_r('PC')
           return false unless @doDiff()
 
@@ -857,30 +919,40 @@ class CPU
       when 0xFE
         data = @getUint8()
         result = @regs.A - data
-        @flags.Z = if result == 0 then 1 else 0
-        @flags.N = 1
+        @regs.flags.Z = if result == 0 then 1 else 0
+        @regs.flags.N = 1
         #flags.H ??
-        @flags.C = if @regs.A < data then 1 else 0
+        @regs.flags.C = if @regs.A < data then 1 else 0
 
       when 0xCB
         opcode2 = @getUint8()
 
         switch opcode2
+          # SWAP n
+          when 0x37 then @SWAP_r('A')
+          when 0x30 then @SWAP_r('B')
+          when 0x31 then @SWAP_r('C')
+          when 0x32 then @SWAP_r('D')
+          when 0x33 then @SWAP_r('E')
+          when 0x34 then @SWAP_r('H')
+          when 0x35 then @SWAP_r('L')
+          # when 0x36 then @SWAP_r('(HL)')
+
           # BIT 7, H
           when 0x7C
-            @flags.Z = (@regs.H >> 7) == 0
+            @regs.flags.Z = (@regs.H >> 7) == 0
             @booya = @regs.H
-            @flags.N = 0
-            @flags.H = 1
+            @regs.flags.N = 0
+            @regs.flags.H = 1
 
           # RL C
           when 0x11
             newC = @regs.C >> 7
-            @flags.N = 0
-            @flags.H = 0
-            @regs.C = ((@regs.C << 1) + @flags.C) & 0xFF
-            @flags.C = newC
-            @flags.Z = if @regs.C == 0 then 1 else 0
+            @regs.flags.N = 0
+            @regs.flags.H = 0
+            @regs.C = ((@regs.C << 1) + @regs.flags.C) & 0xFF
+            @regs.flags.C = newC
+            @regs.flags.Z = if @regs.C == 0 then 1 else 0
 
 
           # RR n

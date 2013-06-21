@@ -43,10 +43,10 @@ drawVideo = ->
 
   ctx = $('#canvas').get(0).getContext('2d')
   ctx.clearRect(0, 0, 160, 144)
-  ctx.fillStyle = "red"
+  ctx.fillStyle = "black"
 
   drawTile = (tileIndex, x, y) ->
-    y += cpu.memory[0xFF42]
+    # y += cpu.memory[0xFF42]
 
     # Tiles are 16 bytes long.
     baseIndex = 0x8000 + tileIndex * 16
