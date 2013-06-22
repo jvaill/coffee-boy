@@ -251,12 +251,12 @@ class CPU
     @regs.SP = @regs.HL
 
   LDHL_SP_n: ->
-    n = @getUint8()
-
+    n = @getInt8()
+    
+    @regs.flags.C = if ((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100 then 1 else 0
+    @regs.flags.H = if ((@regs.SP & 0xF) + (n & 0xF)) & 0x10 then 1 else 0
     @regs.flags.Z = 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.SP & 0x800) + n) & 0x1000 then 1 else 0 # Bit 11 to 12
-    @regs.flags.C = if (@regs.SP + n) & 0x10000 then 1 else 0           # Bit 15 to 16
 
     @regs.HL = (@regs.SP + n) & 0xFFFF
 
@@ -449,8 +449,8 @@ class CPU
 
   ADD_HL_r: (reg) ->
     @regs.flags.N = 0
-    @regs.flags.C = if (@regs.HL + @regs[reg]) & 0x800 then 1 else 0
-    @regs.flags.H = if ((@regs.HL & 0x7FF) + (@regs[reg] & 0x7FF)) & 0x8000 then 1 else 0
+    @regs.flags.C = if ((@regs.HL & 0xFFFF) + (@regs[reg] & 0xFFFF)) & 0x10000 then 1 else 0
+    @regs.flags.H = if ((@regs.HL & 0xFFF) + (@regs[reg] & 0xFFF)) & 0x1000 then 1 else 0
     @regs.HL = (@regs.HL + @regs[reg]) & 0xFFFF
 
   SWAP_r: (reg) ->
@@ -704,7 +704,7 @@ class CPU
 
         if (a & 0x100) == 0x100
           @regs.flags.C = 1
-        
+
         @regs.flags.H = 0
 
         a &= 0xFF
@@ -750,6 +750,25 @@ class CPU
       when 0x2C then @INC_n('L')
       when 0x34 then @INC_RR('HL')
 
+      # INC SP
+      when 0x33
+        @regs.SP = (@regs.SP + 1) & 0xFFFF
+
+      # DEC SP
+      when 0x3B
+        @regs.SP = (@regs.SP - 1) & 0xFFFF
+
+      # ADD SP, n
+      when 0xE8
+        n = @getInt8()
+
+        @regs.flags.C = if ((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100 then 1 else 0
+        @regs.flags.H = if ((@regs.SP & 0xF) + (n & 0xF)) & 0x10 then 1 else 0
+        @regs.flags.Z = 0
+        @regs.flags.N = 0
+
+        @regs.SP = (@regs.SP + n) & 0xFFFF
+
       # DEC n
       when 0x3D then @DEC_n('A')
       when 0x05 then @DEC_n('B')
@@ -777,7 +796,8 @@ class CPU
         @regs.flags.C = 0
 
       when 0x00 # NOP
-        console.log 'nop'
+        boo = 1
+        #console.log 'nop'
 
       # JR NC, n
       when 0x30
