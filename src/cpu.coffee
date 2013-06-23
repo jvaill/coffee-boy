@@ -344,7 +344,7 @@ class CPU
     @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
 
     @regs.A = dirtySum & 0xFF
-    @regs.flags.Z = unless dirtySum then 1 else 0
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   OR_r: (reg) ->
     @regs.A |= @regs[reg]
@@ -426,14 +426,14 @@ class CPU
 
   SBC_A_imm: ->
     n = @getUint8()
-    n += if @regs.flags.C then 1 else 0
+    carry = if @regs.flags.C then 1 else 0
 
-    @regs.flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
     @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < n then 1 else 0
+    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
+    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
 
-    @regs.A = (@regs.A - n) & 0xFF
+    @regs.A = (@regs.A - (n + carry)) & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   SRL_r: (reg) ->
     @regs.flags.N = 0
