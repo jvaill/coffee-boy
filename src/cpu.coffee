@@ -125,7 +125,7 @@ class CPU
       @disassembler.disassemble()
 
       @something()
-      return false
+      true
     true
 
   # Opcodes are gathered from:
@@ -267,14 +267,14 @@ class CPU
 
   PUSH_r: (reg) ->
     @regs.SP--
-    @memory[@regs.SP] = @regs[reg] & 0xFF
-    @regs.SP--
     @memory[@regs.SP] = (@regs[reg] >> 8) & 0xFF
+    @regs.SP--
+    @memory[@regs.SP] = @regs[reg] & 0xFF
 
   POP_r: (reg) ->
-    @regs[reg] = @memory[@regs.SP] << 8
+    @regs[reg] = @memory[@regs.SP]
     @regs.SP++
-    @regs[reg] += @memory[@regs.SP]
+    @regs[reg] += @memory[@regs.SP] << 8
     @regs.SP++
 
   ADD_A_r: (reg) ->
@@ -332,16 +332,19 @@ class CPU
     @regs.A = (@regs.A + n) & 0xFF
 
   ADC_A_imm: ->
-    n  = @getUint8()
-    n += if @regs.flags.C then 1 else 0
-    n &= 0xFF
+    tempValue  = @getUint8()
+    dirtySum = @regs.A + tempValue
+    dirtySum += 1 if @regs.flags.C
+    carry = if @regs.flags.C then 1 else 0
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    #n &= 0xFF
+
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = dirtySum & 0xFF
+    @regs.flags.Z = unless dirtySum then 1 else 0
 
   OR_r: (reg) ->
     @regs.A |= @regs[reg]
