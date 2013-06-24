@@ -1175,7 +1175,33 @@ class CPU
           when 0x2E then @SRA_r('HL')
 
           else
-            throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
+            unless opcode2 >= 0x40
+              throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
+
+            # Command
+            command =
+              if opcode2 >= 0x40 and opcode2 <= 0x7F
+                'BIT'
+              else if opcode2 >= 0x80 and opcode2 <= 0xBF
+                'RES'
+              else if opcode2 >= 0xC0 and opcode2 <= 0xFF
+                'SET'
+            
+            # Bit
+            bit = (opcode2 >> 3) & 0x7
+
+            # Register
+            registers = ['B', 'C', 'D', 'E', 'H', 'L', '(HL)', 'A']
+            register  = registers[opcode2 & 0x7]
+
+            if command == 'BIT'
+              @regs.flags.Z = unless (@regs[register] & (1 << bit)) then 1 else 0
+              @regs.flags.N = 0
+              @regs.flags.H = 1
+            else if command == 'SET'
+              @regs[register] = @regs[register] | (1 << bit)
+            else if command == 'RES'
+              @regs[register] = @regs[register] & ~(1 << bit)
 
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
