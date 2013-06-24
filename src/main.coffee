@@ -73,7 +73,7 @@ step = ->
     # Step one opcode at a time when paused.
     cpu.executeOpcode()
   else
-    for i in [0..500]
+    for i in [0..50000]
       unless cpu.executeOpcode()
         # Breakpoint reached.
         $('#resume').click()

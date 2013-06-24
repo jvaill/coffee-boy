@@ -308,28 +308,34 @@ class CPU
     @regs.A = (@regs.A + n) & 0xFF
 
   ADC_A_r: (reg) ->
-    n  = @regs[reg]
-    n += if @regs.flags.C then 1 else 0
-    n &= 0xFF
+    tempValue  = @regs[reg]
+    dirtySum = @regs.A + tempValue
+    dirtySum += 1 if @regs.flags.C
+    carry = if @regs.flags.C then 1 else 0
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    #n &= 0xFF
+
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = dirtySum & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   ADC_A_R: (reg) ->
-    n  = @memory[@regs[reg]]
-    n += if @regs.flags.C then 1 else 0
-    n &= 0xFF
+    tempValue  = @memory[regs[reg]]
+    dirtySum = @regs.A + tempValue
+    dirtySum += 1 if @regs.flags.C
+    carry = if @regs.flags.C then 1 else 0
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    #n &= 0xFF
+
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
+    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = dirtySum & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   ADC_A_imm: ->
     tempValue  = @getUint8()
@@ -345,6 +351,22 @@ class CPU
 
     @regs.A = dirtySum & 0xFF
     @regs.flags.Z = unless @regs.A then 1 else 0
+
+  AND_r: (reg) ->
+    @regs.A &= @regs[reg]
+
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 1
+    @regs.flags.C = 0
+
+  AND_R: (reg) ->
+    @regs.A &= @memory[@regs[reg]]
+
+    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = 1
+    @regs.flags.C = 0
 
   OR_r: (reg) ->
     @regs.A |= @regs[reg]
@@ -404,6 +426,16 @@ class CPU
 
     @regs.A = (@regs.A - @regs[reg]) & 0xFF
 
+  SUB_R: (reg) ->
+    n = @regs.A - @memory[regs[reg]]
+
+    @regs.flags.Z = unless n & 0xFF then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < (@memory[regs[reg]] & 0xF) then 1 else 0
+    @regs.flags.C = if @regs.A < @memory[regs[reg]] then 1 else 0
+
+    @regs.A = (@regs.A - @memory[regs[reg]]) & 0xFF
+
   SUB_imm: ->
     n = @getUint8()
 
@@ -415,14 +447,26 @@ class CPU
     @regs.A = (@regs.A - n) & 0xFF
 
   SBC_A_r: (reg) ->
-    toSub = @regs[reg] + if @regs.flags.C then 1 else 0
+    n = @regs[reg]
+    carry = if @regs.flags.C then 1 else 0
 
-    @regs.flags.Z = unless n & 0xFF then 1 else 0
     @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (toSub & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < toSub then 1 else 0
+    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
+    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
 
-    @regs.A = (@regs.A - toSub) & 0xFF
+    @regs.A = (@regs.A - (n + carry)) & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
+
+  SBC_A_R: (reg) ->
+    n = @memory[regs[reg]]
+    carry = if @regs.flags.C then 1 else 0
+
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
+    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
+
+    @regs.A = (@regs.A - (n + carry)) & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
 
   SBC_A_imm: ->
     n = @getUint8()
@@ -442,13 +486,21 @@ class CPU
     @regs[reg] = @regs[reg] >> 1
     @regs.flags.Z = unless @regs[reg] then 1 else 0
 
+  RL_r: (reg) ->
+    newC = (@regs[reg] >> 7) & 0x1
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs[reg] = ((@regs[reg] << 1) + (@regs.flags.C)) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = if @regs[reg] == 0 then 1 else 0
+
   RR_r: (reg) ->
     newC = @regs[reg] & 1
     @regs.flags.N = 0
     @regs.flags.H = 0
-    @regs[reg] = ((@regs[reg] >> 1) + (@regs.flags.C << 7)) & 0xFF
+    @regs[reg] = ((@regs[reg] >> 1) | (@regs.flags.C << 7)) & 0xFF
     @regs.flags.C = newC
-    @regs.flags.Z = if @regs[reg] == 0 then 1 else 0
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
 
   ADD_HL_r: (reg) ->
     @regs.flags.N = 0
@@ -473,6 +525,54 @@ class CPU
     @regs.flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
     @regs.flags.C = if @regs.A < @regs[reg] then 1 else 0
 
+  RLC_r: (reg) ->
+    newC= @regs[reg] >> 7
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs[reg] = ((@regs[reg] << 1) | newC) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
+  RLC_R: (reg) ->
+    newC= @memory[regs[reg]] >> 7
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @memory[regs[reg]] = ((@memory[regs[reg]] << 1) | newC) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
+  RRC_r: (reg) ->
+    newC= @regs[reg] & 0x1
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs[reg] = ((@regs[reg] >> 1) | (newC << 7)) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
+  RRC_R: (reg) ->
+    newC= @memory[regs[reg]] & 0x1
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @memory[regs[reg]] = ((@memory[regs[reg]] >> 1) | (newC << 7)) & 0xFF
+    @regs.flags.C = newC
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
+  SLA_r: (reg) ->
+    @regs[reg] = @regs[reg] << 1
+    @regs.flags.C = if @regs[reg] & 0x100 then 1 else 0
+    @regs[reg] &= 0xFF
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
+  SRA_r: (reg) ->
+    @regs.flags.C = @regs[reg] & 1
+    msb = @regs[reg] >> 7
+    @regs[reg] = ((msb << 7) | (@regs[reg] >> 1)) & 0xFF
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -482,7 +582,9 @@ class CPU
 
     switch opcode
 
-      when 0x1F then @RR_r('A')
+      when 0x1F
+        @RR_r('A')
+        @regs.flags.Z = 0
 
       # LD nn, n
       when 0x06 then @LD_r_n('B')
@@ -648,7 +750,7 @@ class CPU
       when 0x93 then @SUB_r('E')
       when 0x94 then @SUB_r('H')
       when 0x95 then @SUB_r('L')
-      when 0x96 then @SUB_r('HL')
+      when 0x96 then @SUB_R('HL')
       when 0xD6 then @SUB_imm()
 
       # SBC A, n
@@ -659,8 +761,18 @@ class CPU
       when 0x9B then @SBC_A_r('E')
       when 0x9C then @SBC_A_r('H')
       when 0x9D then @SBC_A_r('L')
-      when 0x9E then @SBC_A_r('HL')
+      when 0x9E then @SBC_A_R('HL')
       when 0xDE then @SBC_A_imm()
+
+      # AND n
+      when 0xA7 then @AND_r('A')
+      when 0xA0 then @AND_r('B')
+      when 0xA1 then @AND_r('C')
+      when 0xA2 then @AND_r('D')
+      when 0xA3 then @AND_r('E')
+      when 0xA4 then @AND_r('H')
+      when 0xA5 then @AND_r('L')
+      when 0xA6 then @AND_R('HL')
 
       # OR n
       when 0xB7 then @OR_r('A')
@@ -881,14 +993,32 @@ class CPU
           @regs.PC = address
           return false unless @doDiff()
 
+      # RLCA
+      when 0x07
+        newC= @regs.A >> 7
+        @regs.flags.N = 0
+        @regs.flags.H = 0
+        @regs.A = ((@regs.A << 1) | newC) & 0xFF
+        @regs.flags.C = newC
+        @regs.flags.Z = 0
+
       # RLA
       when 0x17
         newC= @regs.A >> 7
         @regs.flags.N = 0
         @regs.flags.H = 0
-        @regs.A = ((@regs.A << 1) + @regs.flags.C) & 0xFF
+        @regs.A = ((@regs.A << 1) | @regs.flags.C) & 0xFF
         @regs.flags.C = newC
-        @regs.flags.Z = if @regs.A == 0 then 1 else 0
+        @regs.flags.Z = 0
+
+      # RRCA
+      when 0x0F
+        newC= @regs.A & 0x1
+        @regs.flags.N = 0
+        @regs.flags.H = 0
+        @regs.A = ((@regs.A >> 1) | (newC << 7)) & 0xFF
+        @regs.flags.C = newC
+        @regs.flags.Z = 0
 
       # # INC HL
       when 0x23
@@ -929,6 +1059,18 @@ class CPU
         @regs.flags.N = 1
         @regs.flags.H = if (@regs.A & 0xF) < (data & 0xF) then 1 else 0
         @regs.flags.C = if @regs.A < data then 1 else 0
+
+      # SCF
+      when 0x37
+        @regs.flags.N = 0
+        @regs.flags.H = 0
+        @regs.flags.C = 1
+
+      # CCF
+      when 0x3F
+        @regs.flags.C = if @regs.flags.C then 0 else 1
+        @regs.flags.N = 0
+        @regs.flags.H = 0
 
       when 0xCB
         opcode2 = @getUint8()
@@ -971,6 +1113,47 @@ class CPU
           when 0x1D then @RR_r('L')
           when 0x1E then @RR_r('HL')
 
+          # RL n
+          when 0x17 then @RL_r('A')
+          when 0x10 then @RL_r('B')
+          when 0x11 then @RL_r('C')
+          when 0x12 then @RL_r('D')
+          when 0x13 then @RL_r('E')
+          when 0x14 then @RL_r('H')
+          when 0x15 then @RL_r('L')
+          when 0x16 then @RL_r('HL')
+
+          # RLC n
+          when 0x07 then @RLC_r('A')
+          when 0x00 then @RLC_r('B')
+          when 0x01 then @RLC_r('C')
+          when 0x02 then @RLC_r('D')
+          when 0x03 then @RLC_r('E')
+          when 0x04 then @RLC_r('H')
+          when 0x05 then @RLC_r('L')
+          when 0x06 then @RLC_R('HL')
+
+          # SLA n
+          when 0x27 then @SLA_r('A')
+          when 0x20 then @SLA_r('B')
+          when 0x21 then @SLA_r('C')
+          when 0x22 then @SLA_r('D')
+          when 0x23 then @SLA_r('E')
+          when 0x24 then @SLA_r('H')
+          when 0x25 then @SLA_r('L')
+          when 0x26 then @SLA_r('HL')
+
+
+          # RRC n
+          when 0x0F then @RRC_r('A')
+          when 0x08 then @RRC_r('B')
+          when 0x09 then @RRC_r('C')
+          when 0x0A then @RRC_r('D')
+          when 0x0B then @RRC_r('E')
+          when 0x0C then @RRC_r('H')
+          when 0x0D then @RRC_r('L')
+          when 0x0E then @RRC_R('HL')
+
           # SRL n
           when 0x3F then @SRL_r('A')
           when 0x38 then @SRL_r('B')
@@ -980,6 +1163,16 @@ class CPU
           when 0x3C then @SRL_r('H')
           when 0x3D then @SRL_r('L')
           when 0x3E then @SRL_r('HL')
+
+          # SRA n
+          when 0x2F then @SRA_r('A')
+          when 0x28 then @SRA_r('B')
+          when 0x29 then @SRA_r('C')
+          when 0x2A then @SRA_r('D')
+          when 0x2B then @SRA_r('E')
+          when 0x2C then @SRA_r('H')
+          when 0x2D then @SRA_r('L')
+          when 0x2E then @SRA_r('HL')
 
           else
             throw "Unknown opcode: 0xCB 0x#{opcode2.toString(16)}"
