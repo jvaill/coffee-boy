@@ -143,13 +143,13 @@ class CPU
     @regs[reg] = (@regs[reg] - 1) & 0xFF
     @regs.flags.Z = unless @regs[reg] then 1 else 0
     @regs.flags.N = 1
-    @regs.flags.H = if @regs[reg] & 0xF == 0xF  then 1 else 0
+    @regs.flags.H = if (@regs[reg] & 0xF) == 0xF then 1 else 0
 
-  DEC_RR: (reg) ->
-    @memory[@regs.HL] = (@memory[@regs.HL] - 1) & 0xFF
-    @regs.flags.Z = if @memory[@regs.HL] == 0 then 1 else 0
+  DEC_RR: (reg) ->    
+    @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
+    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
     @regs.flags.N = 1
-    @regs.flags.H = if @memory[@regs.HL] & 0xF == 0xF then 1 else 0
+    @regs.flags.H = if (@memory[@regs[reg]] & 0xF) == 0xF then 1 else 0
 
   ADD_A_n: (reg) ->
     @regs.flags.N = 0
@@ -611,6 +611,8 @@ class CPU
     @regs.flags.H = 0
     @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
 
+  RST_n: ->
+
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -911,6 +913,18 @@ class CPU
       when 0x33
         @regs.SP = (@regs.SP + 1) & 0xFFFF
 
+      # DEC BC
+      when 0x0B
+        @regs.BC--
+
+      # DEC DE
+      when 0x1B
+        @regs.DE--
+
+      # DEC HL
+      when 0x2B
+        @regs.HL--
+
       # DEC SP
       when 0x3B
         @regs.SP = (@regs.SP - 1) & 0xFFFF
@@ -970,10 +984,32 @@ class CPU
           @regs.PC = address
           return false unless @doDiff()
 
+
       # JP NZ, nn
       when 0xC2
         address = @getUint16()
         unless @regs.flags.Z
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # JP Z, nn
+      when 0xCA
+        address = @getUint16()
+        if @regs.flags.Z
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # JP NC, n
+      when 0xD2
+        address = @getUint16()
+        unless @regs.flags.C
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # JP C, n
+      when 0xDA
+        address = @getUint16()
+        if @regs.flags.C
           @regs.PC = address
           return false unless @doDiff()
 
@@ -1035,6 +1071,30 @@ class CPU
           @regs.PC = address
           return false unless @doDiff()
 
+      # CALL NC, nn
+      when 0xD4
+        address = @getUint16()
+        unless @regs.flags.C
+          @PUSH_r('PC')
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # CALL C, nn
+      when 0xDC
+        address = @getUint16()
+        if @regs.flags.C
+          @PUSH_r('PC')
+          @regs.PC = address
+          return false unless @doDiff()
+
+      # CALL Z, nn
+      when 0xCC
+        address = @getUint16()
+        if @regs.flags.Z
+          @PUSH_r('PC')
+          @regs.PC = address
+          return false unless @doDiff()
+
       # RLCA
       when 0x07
         newC= @regs.A >> 7
@@ -1075,9 +1135,30 @@ class CPU
         @POP_r('PC')
         return false unless @doDiff()
 
+      # RETI
+      when 0xD9
+        @POP_r('PC')
+        return false unless @doDiff()
+
+      # RST n
+      when 0xC7 then @RST_n(0x00)
+      when 0xCF then @RST_n(0x08)
+      when 0xD7 then @RST_n(0x10)
+      when 0xDF then @RST_n(0x18)
+      when 0xE7 then @RST_n(0x20)
+      when 0xEF then @RST_n(0x28)
+      when 0xF7 then @RST_n(0x30)
+      when 0xFF then @RST_n(0x38)
+
       # RET Z
       when 0xC8
         if @regs.flags.Z
+          @POP_r('PC')
+          return false unless @doDiff()
+
+      # RET NZ
+      when 0xC0
+        unless @regs.flags.Z
           @POP_r('PC')
           return false unless @doDiff()
 

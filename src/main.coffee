@@ -42,7 +42,7 @@ drawVideo = ->
     cpu.memory[0xFF44] = 0x91
 
   ctx = $('#canvas').get(0).getContext('2d')
-  ctx.clearRect(0, 0, 160, 144)
+  ctx.clearRect(0, 0, 300, 300)
   ctx.fillStyle = "black"
 
   drawTile = (tileIndex, x, y) ->
@@ -73,7 +73,7 @@ step = ->
     # Step one opcode at a time when paused.
     cpu.executeOpcode()
   else
-    for i in [0..5000]
+    for i in [0..50000]
       unless cpu.executeOpcode()
         # Breakpoint reached.
         $('#resume').click()
@@ -84,7 +84,7 @@ step = ->
   unless isPaused
     requestAnimationFrame step
 
-cpu = new CPU()
+window.cpu = new CPU()
 
 $ ->
   updateRegisters()
@@ -112,7 +112,8 @@ $ ->
       step()
 
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-    downloadBlob 'ROMS/ROM.gb', (blob2) ->
+    rom = if window.location.hash == '' then 'ROMS/ROM.gb' else "ROMS/#{window.location.hash[1..]}.gb"
+    downloadBlob rom, (blob2) ->
       ROM = new Uint8Array(blob2.buffer, 0x100, blob2.length - 0x100)
 
       # Append the rom after the BIOS.
@@ -125,7 +126,6 @@ $ ->
       cpu.disassembler = disassembler
       $('#disassembly').disassemblyView(disassembler)
       cpu.something = =>
-        console.log 'boom'
         $('#disassembly').disassemblyView 'DisassemblyLengthChanged'
       $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
         cpu.breakpoints = breakpoints

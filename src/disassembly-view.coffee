@@ -85,7 +85,6 @@ do ($ = jQuery) =>
     # Recalculates the scrollbar's length.
     DisassemblyLengthChanged: ->
       @disassembly = @disassembler.Disassembly()
-      console.log @disassembly
 
       @$scroller.empty()
       # Create a scrollbar and set its height accordingly.

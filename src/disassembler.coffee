@@ -37,7 +37,6 @@ class Disassembler
 
   disassemble: ->
     @PC = @codePaths.pop()
-    console.log @PC.toString(16)
     return unless @PC?
 
     # Store the PC before the instruction is fetched.
