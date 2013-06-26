@@ -1,20 +1,31 @@
-objectWithProperties = (obj) =>
-  if obj.properties
-    Object.defineProperties obj, obj.properties
-    delete obj.properties
-  obj
-
 class CPU
+  REG_PAIRS = ['AF', 'BC', 'DE', 'HL']
 
-  buffer: null
-  memory: null
-  breakpoints: null
+  class Regs
+    constructor: ->
+      Object.defineProperties this, this.properties
+      delete this.properties
 
-  regs: objectWithProperties
-    flags:  {}
+      # Create a property for each register pair
+      for regPair in REG_PAIRS
+        [regA, regB] = [regPair[0], regPair[1]]
+
+        do (regA, regB) =>
+          property =
+            get: -> (@[regA] << 8) + @[regB]
+            set: (value) ->
+              @[regA] = (value >> 8) & 0xFF
+              @[regB] = value & 0xFF
+
+          Object.defineProperty this, regPair, property
+
+    # Registers
+    PC: 0, SP: 0
     A: 0, B: 0, C: 0, D: 0, E: 0
     H: 0, L: 0
-    PC: 0, SP: 0
+
+    flags:
+      Z: 0, N: 0, H: 0, C: 0
 
     properties:
       F:
@@ -32,29 +43,10 @@ class CPU
           @flags.H = if value & 0x20 then 1 else 0
           @flags.C = if value & 0x10 then 1 else 0
 
-      AF:
-        get: -> (@A << 8) + @F
-        set: (value) ->
-          @F = value & 0xFF
-          @A = (value >> 8) & 0xFF
-
-      BC:
-        get: -> (@B << 8) + @C
-        set: (value) ->
-          @C = value & 0xFF
-          @B = (value >> 8) & 0xFF
-
-      DE:
-        get: -> (@D << 8) + @E
-        set: (value) ->
-          @E = value & 0xFF
-          @D = (value >> 8) & 0xFF
-
-      HL:
-        get: -> (@H << 8) + @L
-        set: (value) ->
-          @L = value & 0xFF
-          @H = (value >> 8) & 0xFF
+  buffer: null
+  memory: null
+  breakpoints: null
+  regs: new Regs()
 
   constructor: ->
     @reset()
