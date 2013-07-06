@@ -247,8 +247,8 @@ class CPU
 
     @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
 
     @regs.A = sum
 
@@ -258,8 +258,8 @@ class CPU
 
     @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
 
     @regs.A = sum
 
@@ -269,10 +269,44 @@ class CPU
 
     @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
 
     @regs.A = sum
+
+  SUB_r: (reg) ->
+    n    = @regs[reg]
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+    @regs.A = diff
+
+  SUB_R: (reg) ->
+    n    = @memory[@regs[reg]]
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+    @regs.A = diff
+
+  SUB_imm: ->
+    n    = @getUint8()
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+    @regs.A = diff
+
 
 
 
@@ -404,35 +438,6 @@ class CPU
     @regs.flags.H = 0
     @regs.flags.C = 0
 
-  SUB_r: (reg) ->
-    n = @regs.A - @regs[reg]
-
-    @regs.flags.Z = unless n & 0xFF then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < @regs[reg] then 1 else 0
-
-    @regs.A = (@regs.A - @regs[reg]) & 0xFF
-
-  SUB_R: (reg) ->
-    n = @regs.A - @memory[@regs[reg]]
-
-    @regs.flags.Z = unless n & 0xFF then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (@memory[@regs[reg]] & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < @memory[@regs[reg]] then 1 else 0
-
-    @regs.A = (@regs.A - @memory[@regs[reg]]) & 0xFF
-
-  SUB_imm: ->
-    n = @getUint8()
-
-    @regs.flags.Z = unless (@regs.A - n) & 0xFF then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (n & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < n then 1 else 0
-
-    @regs.A = (@regs.A - n) & 0xFF
 
   SBC_A_r: (reg) ->
     n = @regs[reg]
@@ -776,11 +781,6 @@ class CPU
       when 0x8E then @ADC_A_R('HL')
       when 0xCE then @ADC_A_imm()
 
-      # STOP
-      when 0x10
-        console.log 'STOP'
-
-
       # SUB n
       when 0x97 then @SUB_r('A')
       when 0x90 then @SUB_r('B')
@@ -791,6 +791,17 @@ class CPU
       when 0x95 then @SUB_r('L')
       when 0x96 then @SUB_R('HL')
       when 0xD6 then @SUB_imm()
+
+
+
+
+
+
+
+
+      # STOP
+      when 0x10
+        console.log 'STOP'
 
       # SBC A, n
       when 0x9F then @SBC_A_r('A')
