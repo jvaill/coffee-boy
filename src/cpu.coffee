@@ -119,63 +119,14 @@ class CPU
   #
   # rr denotes a register pair.
 
-  INC_n: (reg) ->
-    @regs[reg] = (@regs[reg] + 1) & 0xFF
-    @regs.flags.Z = unless @regs[reg] then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = unless @regs[reg] & 0xF then 1 else 0
-
-  INC_RR: (reg) ->
-    @memory[@regs[reg]] = (@memory[@regs[reg]] + 1) & 0xFF
-    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
-
-  DEC_n: (reg) ->
-    @regs[reg] = (@regs[reg] - 1) & 0xFF
-    @regs.flags.Z = unless @regs[reg] then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs[reg] & 0xF) == 0xF then 1 else 0
-
-  DEC_RR: (reg) ->    
-    @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
-    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@memory[@regs[reg]] & 0xF) == 0xF then 1 else 0
-
-  ADD_A_n: (reg) ->
-    @regs.flags.N = 0
-    @regs.flags.H = ((@regs.A & 0xF) + (@regs[reg] & 0xF)) & 0x10
-    @regs.flags.C = if @regs.A + @regs[reg] > 0xFF then 1 else 0
-    @regs.A += @regs[reg] & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
-
-  ADD_A_RR: (reg) ->
-    @regs.flags.N = 0
-    @regs.flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]] & 0xF)) & 0x10
-    @regs.flags.C = if @regs.A + @memory[@regs[reg]] > 0xFF then 1 else 0
-    @regs.A = (@regs.A + @memory[@regs[reg]]) & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
-
-
-
-
-  #### NEW OPCODES HERE
-
   LD_r_n: (reg) ->
     @regs[reg] = @getUint8()
-
-  LD_R_n: (reg) ->
-    @memory[@regs[reg]] = @getUint8()
 
   LD_r_r2: (reg, reg2) ->
     @regs[reg] = @regs[reg2]
 
   LD_r_R2: (reg, reg2) ->
     @regs[reg] = @memory[@regs[reg2]]
-
-  LD_R_r2: (reg, reg2) ->
-    @memory[@regs[reg]] = @regs[reg2]
 
   LD_A_r: (reg) ->
     @regs.A = @regs[reg]
@@ -185,9 +136,6 @@ class CPU
 
   LD_A_NN: (reg) ->
     @regs.A = @memory[@getUint16()]
-
-  LD_A_imm: ->
-    @regs.A = @getUint8()
 
   LD_r_A: (reg) ->
     @regs[reg] = @regs.A
@@ -234,11 +182,11 @@ class CPU
 
   LDHL_SP_n: ->
     n = @getInt8()
-    
-    @regs.flags.C = if ((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100 then 1 else 0
-    @regs.flags.H = if ((@regs.SP & 0xF) + (n & 0xF)) & 0x10 then 1 else 0
+
     @regs.flags.Z = 0
     @regs.flags.N = 0
+    @regs.flags.H = (((@regs.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
     @regs.HL = (@regs.SP + n) & 0xFFFF
 
@@ -254,85 +202,143 @@ class CPU
     @memory[@regs.SP] = @regs[reg] & 0xFF
 
   POP_r: (reg) ->
-    @regs[reg] = @memory[@regs.SP]
+    byte  = @memory[@regs.SP]
     @regs.SP++
-    @regs[reg] += @memory[@regs.SP] << 8
+    byte2 = @memory[@regs.SP]
     @regs.SP++
+    @regs[reg] = byte | (byte2 << 8)
 
   ADD_A_r: (reg) ->
-    n = @regs[reg]
+    n   = @regs[reg]
+    sum = (@regs.A + n) & 0xFF
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = sum
 
   ADD_A_R: (reg) ->
-    n = @memory[@regs[reg]]
+    n   = @memory[@regs[reg]]
+    sum = (@regs.A + n) & 0xFF
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = sum
 
   ADD_A_imm: ->
-    n = @getUint8()
+    n   = @getUint8()
+    sum = (@regs.A + n) & 0xFF
 
-    @regs.flags.Z = unless (@regs.A + n) & 0xFF then 1 else 0
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (n & 0xF)) & 0x10 then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if (@regs.A + n) & 0x100 then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.A = (@regs.A + n) & 0xFF
+    @regs.A = sum
 
   ADC_A_r: (reg) ->
-    tempValue  = @regs[reg]
-    dirtySum = @regs.A + tempValue
-    dirtySum += 1 if @regs.flags.C
-    carry = if @regs.flags.C then 1 else 0
+    n   = @regs[reg]
+    sum = (@regs.A + n + @regs.flags.C) & 0xFF
 
-    #n &= 0xFF
-
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
 
-    @regs.A = dirtySum & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.A = sum
 
   ADC_A_R: (reg) ->
-    tempValue  = @memory[@regs[reg]]
-    dirtySum = @regs.A + tempValue
-    dirtySum += 1 if @regs.flags.C
-    carry = if @regs.flags.C then 1 else 0
+    n   = @memory[@regs[reg]]
+    sum = (@regs.A + n + @regs.flags.C) & 0xFF
 
-    #n &= 0xFF
-
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
 
-    @regs.A = dirtySum & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
+    @regs.A = sum
 
   ADC_A_imm: ->
-    tempValue  = @getUint8()
-    dirtySum = @regs.A + tempValue
-    dirtySum += 1 if @regs.flags.C
-    carry = if @regs.flags.C then 1 else 0
+    n   = @getUint8()
+    sum = (@regs.A + n + @regs.flags.C) & 0xFF
 
-    #n &= 0xFF
-
+    @regs.flags.Z = sum == 0
     @regs.flags.N = 0
-    @regs.flags.H = if ((@regs.A & 0xF) + (tempValue & 0xF) + (carry & 0xF)) > 0xF then 1 else 0 # Bit 3 to 4
-    @regs.flags.C = if dirtySum > 0xFF then 1 else 0                # Bit 7 to 8
+    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + (@regs.flags.C & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + (@regs.flags.C & 0xFF)) & 0x100) > 0
 
-    @regs.A = dirtySum & 0xFF
+    @regs.A = sum
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  INC_n: (reg) ->
+    @regs[reg] = (@regs[reg] + 1) & 0xFF
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = unless @regs[reg] & 0xF then 1 else 0
+
+  INC_RR: (reg) ->
+    @memory[@regs[reg]] = (@memory[@regs[reg]] + 1) & 0xFF
+    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    @regs.flags.N = 0
+    @regs.flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
+
+  DEC_n: (reg) ->
+    @regs[reg] = (@regs[reg] - 1) & 0xFF
+    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@regs[reg] & 0xF) == 0xF then 1 else 0
+
+  DEC_RR: (reg) ->    
+    @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
+    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    @regs.flags.N = 1
+    @regs.flags.H = if (@memory[@regs[reg]] & 0xF) == 0xF then 1 else 0
+
+  ADD_A_n: (reg) ->
+    @regs.flags.N = 0
+    @regs.flags.H = ((@regs.A & 0xF) + (@regs[reg] & 0xF)) & 0x10
+    @regs.flags.C = if @regs.A + @regs[reg] > 0xFF then 1 else 0
+    @regs.A += @regs[reg] & 0xFF
     @regs.flags.Z = unless @regs.A then 1 else 0
+
+  ADD_A_RR: (reg) ->
+    @regs.flags.N = 0
+    @regs.flags.H = ((@regs.A & 0xF) + (@memory[@regs[reg]] & 0xF)) & 0x10
+    @regs.flags.C = if @regs.A + @memory[@regs[reg]] > 0xFF then 1 else 0
+    @regs.A = (@regs.A + @memory[@regs[reg]]) & 0xFF
+    @regs.flags.Z = unless @regs.A then 1 else 0
+
+  LD_R_n: (reg) ->
+    @memory[@regs[reg]] = @getUint8()
+
+  LD_R_r2: (reg, reg2) ->
+    @memory[@regs[reg]] = @regs[reg2]
+
+  LD_A_imm: ->
+    @regs.A = @getUint8()
 
   AND_r: (reg) ->
     @regs.A &= @regs[reg]
@@ -614,10 +620,6 @@ class CPU
 
     switch opcode
 
-      when 0x1F
-        @RR_r('A')
-        @regs.flags.Z = 0
-
       # LD nn, n
       when 0x06 then @LD_r_n('B')
       when 0x0E then @LD_r_n('C')
@@ -710,10 +712,6 @@ class CPU
       when 0x77 then @LD_R_A('HL')
       when 0xEA then @LD_NN_A()
 
-      # STOP
-      when 0x10
-        console.log 'STOP'
-      
       # LDH A, (C)
       when 0xF2 then @LDH_A_C()
       # LDH (C), A
@@ -777,6 +775,11 @@ class CPU
       when 0x8D then @ADC_A_r('L')
       when 0x8E then @ADC_A_R('HL')
       when 0xCE then @ADC_A_imm()
+
+      # STOP
+      when 0x10
+        console.log 'STOP'
+
 
       # SUB n
       when 0x97 then @SUB_r('A')
@@ -931,6 +934,10 @@ class CPU
         @regs.flags.N = 0
 
         @regs.SP = (@regs.SP + n) & 0xFFFF
+
+      when 0x1F
+        @RR_r('A')
+        @regs.flags.Z = 0
 
       # DEC n
       when 0x3D then @DEC_n('A')
