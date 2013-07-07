@@ -307,10 +307,110 @@ class CPU
 
     @regs.A = diff
 
+  SBC_A_r: (reg) ->
+    n    = @regs[reg]
+    diff = (@regs.A - n - @regs.flags.C) & 0xFF
 
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
+    @regs.flags.C = @regs.A < n + @regs.flags.C
 
+    @regs.A = diff
 
+  SBC_A_R: (reg) ->
+    n    = @memory[@regs[reg]]
+    diff = (@regs.A - n - @regs.flags.C) & 0xFF
 
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
+    @regs.flags.C = @regs.A < n + @regs.flags.C
+
+    @regs.A = diff
+
+  SBC_A_imm: ->
+    n    = @getUint8()
+    diff = (@regs.A - n - @regs.flags.C) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
+    @regs.flags.C = @regs.A < n + @regs.flags.C
+
+    @regs.A = diff
+
+  AND_r: (reg) ->
+    @regs.A &= @regs[reg]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 1
+    @regs.flags.C = 0
+
+  AND_R: (reg) ->
+    @regs.A &= @memory[@regs[reg]]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 1
+    @regs.flags.C = 0
+
+  AND_imm: (reg) ->
+    @regs.A &= @getUint8()
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 1
+    @regs.flags.C = 0
+
+  OR_r: (reg) ->
+    @regs.A |= @regs[reg]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
+  OR_R: (reg) ->
+    @regs.A |= @memory[@regs[reg]]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
+  OR_imm: ->
+    @regs.A |= @getUint8()
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
+  XOR_r: (reg) ->
+    @regs.A ^= @regs[reg]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
+  XOR_R: (reg) ->
+    @regs.A ^= @memory[@regs[reg]]
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
+
+  XOR_imm: ->
+    @regs.A ^= @getUint8()
+
+    @regs.flags.Z = @regs.A == 0
+    @regs.flags.N = 0
+    @regs.flags.H = 0
+    @regs.flags.C = 0
 
 
 
@@ -374,103 +474,8 @@ class CPU
   LD_A_imm: ->
     @regs.A = @getUint8()
 
-  AND_r: (reg) ->
-    @regs.A &= @regs[reg]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-    @regs.flags.C = 0
-
-  AND_R: (reg) ->
-    @regs.A &= @memory[@regs[reg]]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-    @regs.flags.C = 0
-
-  OR_r: (reg) ->
-    @regs.A |= @regs[reg]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  OR_R: (reg) ->
-    @regs.A |= @memory[@regs[reg]]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  OR_imm: ->
-    @regs.A |= @getUint8()
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  XOR_r: (reg) ->
-    @regs.A ^= @regs[reg]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  XOR_R: (reg) ->
-    @regs.A ^= @memory[@regs[reg]]
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  XOR_imm: ->
-    @regs.A ^= @getUint8()
-
-    @regs.flags.Z = unless @regs.A then 1 else 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
 
 
-  SBC_A_r: (reg) ->
-    n = @regs[reg]
-    carry = if @regs.flags.C then 1 else 0
-
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
-    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
-
-    @regs.A = (@regs.A - (n + carry)) & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
-
-  SBC_A_R: (reg) ->
-    n = @memory[@regs[reg]]
-    carry = if @regs.flags.C then 1 else 0
-
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
-    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
-
-    @regs.A = (@regs.A - (n + carry)) & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
-
-  SBC_A_imm: ->
-    n = @getUint8()
-    carry = if @regs.flags.C then 1 else 0
-
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < ((n & 0xF) + (carry & 0xF)) then 1 else 0
-    @regs.flags.C = if @regs.A < (n + carry) then 1 else 0
-
-    @regs.A = (@regs.A - (n + carry)) & 0xFF
-    @regs.flags.Z = unless @regs.A then 1 else 0
 
   SRL_r: (reg) ->
     @regs.flags.N = 0
@@ -792,17 +797,6 @@ class CPU
       when 0x96 then @SUB_R('HL')
       when 0xD6 then @SUB_imm()
 
-
-
-
-
-
-
-
-      # STOP
-      when 0x10
-        console.log 'STOP'
-
       # SBC A, n
       when 0x9F then @SBC_A_r('A')
       when 0x98 then @SBC_A_r('B')
@@ -823,6 +817,7 @@ class CPU
       when 0xA4 then @AND_r('H')
       when 0xA5 then @AND_r('L')
       when 0xA6 then @AND_R('HL')
+      when 0xE6 then @AND_imm()
 
       # OR n
       when 0xB7 then @OR_r('A')
@@ -845,6 +840,10 @@ class CPU
       when 0xAD then @XOR_r('L')
       when 0xAE then @XOR_R('HL')
       when 0xEE then @XOR_imm()
+
+      # STOP
+      when 0x10
+        console.log 'STOP'
 
       # INC BC
       when 0x03 then @regs.BC++
@@ -967,14 +966,6 @@ class CPU
       when 0x19 then @ADD_HL_r('DE')
       when 0x29 then @ADD_HL_r('HL')
       when 0x39 then @ADD_HL_r('SP')
-
-      # AND #
-      when 0xE6
-        @regs.A = @regs.A & @getUint8()
-        @regs.flags.Z = if @regs.A == 0 then 1 else 0
-        @regs.flags.N = 0
-        @regs.flags.H = 1
-        @regs.flags.C = 0
 
       when 0x00 # NOP
         boo = 1
