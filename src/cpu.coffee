@@ -412,6 +412,34 @@ class CPU
     @regs.flags.H = 0
     @regs.flags.C = 0
 
+  CP_r: (reg) ->
+    n    = @regs[reg]
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+  CP_R: (reg) ->
+    n    = @memory[@regs[reg]]
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+  CP_imm: (reg) ->
+    n    = @getUint8()
+    diff = (@regs.A - n) & 0xFF
+
+    @regs.flags.Z = diff == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
+    @regs.flags.C = @regs.A < n
+
+
 
 
 
@@ -546,14 +574,6 @@ class CPU
     @regs.flags.N = 0
     @regs.flags.H = 0
     @regs.flags.C = 0
-
-  CP_r: (reg) ->
-    n = @regs.A - @regs[reg]
-
-    @regs.flags.Z = unless n & 0xFF then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs.A & 0xF) < (@regs[reg] & 0xF) then 1 else 0
-    @regs.flags.C = if @regs.A < @regs[reg] then 1 else 0
 
   RLC_r: (reg) ->
     newC= @regs[reg] >> 7
@@ -841,6 +861,17 @@ class CPU
       when 0xAE then @XOR_R('HL')
       when 0xEE then @XOR_imm()
 
+      # CP n
+      when 0xBF then @CP_r('A')
+      when 0xB8 then @CP_r('B')
+      when 0xB9 then @CP_r('C')
+      when 0xBA then @CP_r('D')
+      when 0xBB then @CP_r('E')
+      when 0xBC then @CP_r('H')
+      when 0xBD then @CP_r('L')
+      when 0xBE then @CP_R('HL')
+      when 0xFE then @CP_imm()
+
       # STOP
       when 0x10
         console.log 'STOP'
@@ -875,29 +906,11 @@ class CPU
         @regs.A = a
         @regs.flags.Z = unless @regs.A then 1 else 0
 
-      # CP n
-      when 0xBF then @CP_r('A')
-      when 0xB8 then @CP_r('B')
-      when 0xB9 then @CP_r('C')
-      when 0xBA then @CP_r('D')
-      when 0xBB then @CP_r('E')
-      when 0xBC then @CP_r('H')
-      when 0xBD then @CP_r('L')
-
       # CPL
       when 0x2F
         @regs.A ^= 0xFF
         @regs.flags.N = 1
         @regs.flags.H = 1
-
-      # CP (HL)
-      when 0xBE
-        n = @regs.A - @memory[@regs.HL]
-
-        @regs.flags.Z = unless n & 0xFF then 1 else 0
-        @regs.flags.N = 1
-        @regs.flags.H = if (@regs.A & 0xF) < (@memory[@regs.HL] & 0xF) then 1 else 0
-        @regs.flags.C = if @regs.A < @memory[@regs.HL] then 1 else 0
 
       # DI
       when 0xF3
@@ -1174,15 +1187,6 @@ class CPU
         unless @regs.flags.C
           @POP_r('PC')
           return false unless @doDiff()
-
-      # CP #
-      when 0xFE
-        data = @getUint8()
-        result = @regs.A - data
-        @regs.flags.Z = if result == 0 then 1 else 0
-        @regs.flags.N = 1
-        @regs.flags.H = if (@regs.A & 0xF) < (data & 0xF) then 1 else 0
-        @regs.flags.C = if @regs.A < data then 1 else 0
 
       # SCF
       when 0x37
