@@ -25,7 +25,7 @@ class CPU
     H: 0, L: 0
 
     flags:
-      Z: 0, N: 0, H: 0, C: 0
+      Z: false, N: false, H: false, C: false
 
     properties:
       F:
@@ -38,10 +38,10 @@ class CPU
           flags
 
         set: (value) ->
-          @flags.Z = if value & 0x80 then 1 else 0
-          @flags.N = if value & 0x40 then 1 else 0
-          @flags.H = if value & 0x20 then 1 else 0
-          @flags.C = if value & 0x10 then 1 else 0
+          @flags.Z = (value & 0x80) > 0
+          @flags.N = (value & 0x40) > 0
+          @flags.H = (value & 0x20) > 0
+          @flags.C = (value & 0x10) > 0
 
   buffer: null
   memory: null
@@ -439,45 +439,83 @@ class CPU
     @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
     @regs.flags.C = @regs.A < n
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   INC_n: (reg) ->
-    @regs[reg] = (@regs[reg] + 1) & 0xFF
-    @regs.flags.Z = unless @regs[reg] then 1 else 0
+    n = (@regs[reg] + 1) & 0xFF
+
+    @regs.flags.Z = n == 0
     @regs.flags.N = 0
-    @regs.flags.H = unless @regs[reg] & 0xF then 1 else 0
+    @regs.flags.H = (n & 0xF) > 0
+
+    @regs[reg] = n
 
   INC_RR: (reg) ->
-    @memory[@regs[reg]] = (@memory[@regs[reg]] + 1) & 0xFF
-    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    n = (@memory[@regs[reg]] + 1) & 0xFF
+
+    @regs.flags.Z = n == 0
     @regs.flags.N = 0
-    @regs.flags.H = unless @memory[@regs[reg]] & 0xF then 1 else 0
+    @regs.flags.H = (n & 0xF) > 0
+
+    @memory[@regs[reg]] = n
 
   DEC_n: (reg) ->
-    @regs[reg] = (@regs[reg] - 1) & 0xFF
-    @regs.flags.Z = unless @regs[reg] then 1 else 0
-    @regs.flags.N = 1
-    @regs.flags.H = if (@regs[reg] & 0xF) == 0xF then 1 else 0
+    n = (@regs[reg] - 1) & 0xFF
 
-  DEC_RR: (reg) ->    
-    @memory[@regs[reg]] = (@memory[@regs[reg]] - 1) & 0xFF
-    @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
+    @regs.flags.Z = n == 0
     @regs.flags.N = 1
-    @regs.flags.H = if (@memory[@regs[reg]] & 0xF) == 0xF then 1 else 0
+    @regs.flags.H = (n & 0xF) == 0xF
+
+    @regs[reg] = n
+
+  DEC_RR: (reg) ->
+    n = (@memory[@regs[reg]] - 1) & 0xFF
+
+    @regs.flags.Z = n == 0
+    @regs.flags.N = 1
+    @regs.flags.H = (n & 0xF) == 0xF
+
+    @memory[@regs[reg]] = n
+
+  ADD_HL_r: (reg) ->
+    n   = @regs[reg]
+    sum = (@regs.HL + @regs[reg]) & 0xFFFF
+
+    @regs.flags.N = 0
+    @regs.flags.H = (((@regs.HL & 0xFFF)  + (n & 0xFFF))  & 0x1000)  > 0
+    @regs.flags.C = (((@regs.HL & 0xFFFF) + (n & 0xFFFF)) & 0x10000) > 0
+
+    @regs.HL = sum
+
+  ADD_SP_imm: ->
+    n   = @getInt8()
+    sum = (@regs.SP + n) & 0xFFFF
+
+    @regs.flags.Z = 0
+    @regs.flags.N = 0
+    @regs.flags.H = (((@regs.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @regs.flags.C = (((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
+
+    @regs.SP = sum
+
+  INC_nn: (reg) ->
+    @regs[reg] = (@regs[reg] + 1) & 0xFFFF
+
+  DEC_nn: (reg) ->
+    @regs[reg] = (@regs[reg] - 1) & 0xFFFF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   ADD_A_n: (reg) ->
     @regs.flags.N = 0
@@ -551,11 +589,6 @@ class CPU
     @regs.flags.C = newC
     @regs.flags.Z = unless @memory[@regs[reg]] then 1 else 0
 
-  ADD_HL_r: (reg) ->
-    @regs.flags.N = 0
-    @regs.flags.C = if ((@regs.HL & 0xFFFF) + (@regs[reg] & 0xFFFF)) & 0x10000 then 1 else 0
-    @regs.flags.H = if ((@regs.HL & 0xFFF) + (@regs[reg] & 0xFFF)) & 0x1000 then 1 else 0
-    @regs.HL = (@regs.HL + @regs[reg]) & 0xFFFF
 
   SWAP_r: (reg) ->
     tmp = @regs[reg] & 0xF
@@ -872,12 +905,51 @@ class CPU
       when 0xBE then @CP_R('HL')
       when 0xFE then @CP_imm()
 
+      # INC n
+      when 0x3C then @INC_n('A')
+      when 0x04 then @INC_n('B')
+      when 0x0C then @INC_n('C')
+      when 0x14 then @INC_n('D')
+      when 0x1C then @INC_n('E')
+      when 0x24 then @INC_n('H')
+      when 0x2C then @INC_n('L')
+      when 0x34 then @INC_RR('HL')
+
+      # DEC n
+      when 0x3D then @DEC_n('A')
+      when 0x05 then @DEC_n('B')
+      when 0x0D then @DEC_n('C')
+      when 0x15 then @DEC_n('D')
+      when 0x1D then @DEC_n('E')
+      when 0x25 then @DEC_n('H')
+      when 0x2D then @DEC_n('L')
+      when 0x35 then @DEC_RR('HL')
+
+      # ADD HL, n
+      when 0x09 then @ADD_HL_r('BC')
+      when 0x19 then @ADD_HL_r('DE')
+      when 0x29 then @ADD_HL_r('HL')
+      when 0x39 then @ADD_HL_r('SP')
+
+      # ADD SP, n
+      when 0xE8 then @ADD_SP_imm()
+
+      # INC nn
+      when 0x03 then @INC_nn('BC')
+      when 0x13 then @INC_nn('DE')
+      when 0x23 then @INC_nn('HL')
+      when 0x33 then @INC_nn('SP')
+
+      # DEC nn
+      when 0x0B then @DEC_nn('BC')
+      when 0x1B then @DEC_nn('DE')
+      when 0x2B then @DEC_nn('HL')
+      when 0x3B then @DEC_nn('SP')
+
+
       # STOP
       when 0x10
         console.log 'STOP'
-
-      # INC BC
-      when 0x03 then @regs.BC++
 
       # DAA
       when 0x27
@@ -916,69 +988,13 @@ class CPU
       when 0xF3
         console.log 'DI'
 
-
-      # INC n
-      when 0x3C then @INC_n('A')
-      when 0x04 then @INC_n('B')
-      when 0x0C then @INC_n('C')
-      when 0x14 then @INC_n('D')
-      when 0x1C then @INC_n('E')
-      when 0x24 then @INC_n('H')
-      when 0x2C then @INC_n('L')
-      when 0x34 then @INC_RR('HL')
-
-      # INC SP
-      when 0x33
-        @regs.SP = (@regs.SP + 1) & 0xFFFF
-
-      # DEC BC
-      when 0x0B
-        @regs.BC--
-
-      # DEC DE
-      when 0x1B
-        @regs.DE--
-
-      # DEC HL
-      when 0x2B
-        @regs.HL--
-
-      # DEC SP
-      when 0x3B
-        @regs.SP = (@regs.SP - 1) & 0xFFFF
-
-      # ADD SP, n
-      when 0xE8
-        n = @getInt8()
-
-        @regs.flags.C = if ((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100 then 1 else 0
-        @regs.flags.H = if ((@regs.SP & 0xF) + (n & 0xF)) & 0x10 then 1 else 0
-        @regs.flags.Z = 0
-        @regs.flags.N = 0
-
-        @regs.SP = (@regs.SP + n) & 0xFFFF
-
       when 0x1F
         @RR_r('A')
         @regs.flags.Z = 0
 
-      # DEC n
-      when 0x3D then @DEC_n('A')
-      when 0x05 then @DEC_n('B')
-      when 0x0D then @DEC_n('C')
-      when 0x15 then @DEC_n('D')
-      when 0x1D then @DEC_n('E')
-      when 0x25 then @DEC_n('H')
-      when 0x2D then @DEC_n('L')
-      when 0x35 then @DEC_RR('HL')
 
       when 0xFB then console.log 'EI'
 
-      # ADD HL, n
-      when 0x09 then @ADD_HL_r('BC')
-      when 0x19 then @ADD_HL_r('DE')
-      when 0x29 then @ADD_HL_r('HL')
-      when 0x39 then @ADD_HL_r('SP')
 
       when 0x00 # NOP
         boo = 1
@@ -1135,14 +1151,6 @@ class CPU
         @regs.A = ((@regs.A >> 1) | (newC << 7)) & 0xFF
         @regs.flags.C = newC
         @regs.flags.Z = 0
-
-      # # INC HL
-      when 0x23
-        @regs.HL++
-
-      # # INC DE
-      when 0x13
-        @regs.DE++
 
       # RET
       when 0xC9

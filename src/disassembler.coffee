@@ -439,7 +439,6 @@ class Disassembler
       when 0x25 then @DEC_r('H')
       when 0x2D then @DEC_r('L')
       when 0x35 then @DEC_r('(HL)')
-      when 0x3b then @DEC_r('SP')
 
       # ADD HL, n
       when 0x09 then @ADD_HL_r('BC')
@@ -460,7 +459,7 @@ class Disassembler
       when 0x0B then @DEC_r('BC')
       when 0x1B then @DEC_r('DE')
       when 0x2B then @DEC_r('HL')
-      when 0x3C then @DEC_r('SP')
+      when 0x3B then @DEC_r('SP')
 
       # DAA
       when 0x27 then 'DAA'
