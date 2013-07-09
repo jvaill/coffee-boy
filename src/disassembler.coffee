@@ -1,6 +1,6 @@
 class Disassembler
-  buffer:     null
   PC:         null
+  buffer:     null
   codePaths:  null
   diassembly: null
 
@@ -14,7 +14,7 @@ class Disassembler
 
   Disassembly: ->
     disassembly = []
-    
+
     for address in [0...@disassembly.length]
       mnemonic = @disassembly[address]
 
@@ -84,7 +84,7 @@ class Disassembler
     sign = (byte >> 7) & 0x1
     if sign
       byte = -((byte ^ 0xFF) + 1)
-    
+
     byte
 
   getRelInt8JmpAddress: ->
@@ -103,15 +103,20 @@ class Disassembler
   # Opcodes are gathered from:
   #   - http://meatfighter.com/gameboy/GBCPUman.pdf
   #   - http://imrannazar.com/Gameboy-Z80-Opcode-Map
+  #   - http://www.scribd.com/doc/39999184/GameBoy-Programming-Manual
   #
-  # As a convention, an uppercase 'N' in the function's
-  # name denotes a pointer.
+  # As conventions:
+  #   - 'r' represents a register
+  #   - 'n' represents a byte
+  #   - 'rr' represents a pair of registers
+  #   - 'nn' represents a 16 bit integer
+  #   - Uppercase characters denote a pointer
   #
   LD_r_n:     (reg)       -> "LD #{reg}, $#{@getUint8H()}"
   LD_r_r2:    (reg, reg2) -> "LD #{reg}, #{reg2}"
   LD_A_r:     (reg)       -> "LD A, #{reg}"
   LD_A_NN:                -> "LD A, ($#{@getUint16H()})"
-  LD_A_imm:               -> "LD A, $#{@getUint8H()}"
+  LD_A_n:                 -> "LD A, $#{@getUint8H()}"
   LD_r_A:     (reg)       -> "LD #{reg}, A"
   LD_NN_A:                -> "LD ($#{@getUint16H()}), A"
   LDH_N_A:                -> "LD ($FF00 + $#{@getUint8H()}), A"
@@ -122,26 +127,26 @@ class Disassembler
   PUSH_r:     (reg)       -> "PUSH #{reg}"
   POP_r:      (reg)       -> "POP #{reg}"
   ADD_A_r:    (reg)       -> "ADD A, #{reg}"
-  ADD_A_imm:              -> "ADD A, $#{@getUint8H()}"
+  ADD_A_n:                -> "ADD A, $#{@getUint8H()}"
   ADC_A_r:    (reg)       -> "ADC A, #{reg}"
-  ADC_A_imm:              -> "ADC A, $#{@getUint8H()}"
+  ADC_A_n:                -> "ADC A, $#{@getUint8H()}"
   SUB_r:      (reg)       -> "SUB #{reg}"
-  SUB_imm:                -> "SUB $#{@getUint8H()}"
+  SUB_n:                  -> "SUB $#{@getUint8H()}"
   SBC_A_r:    (reg)       -> "SBC A, #{reg}"
-  SBC_A_imm:              -> "SBC A, $#{@getUint8H()}"
+  SBC_A_n:                -> "SBC A, $#{@getUint8H()}"
   AND_r:      (reg)       -> "AND #{reg}"
-  AND_imm:                -> "AND $#{@getUint8H()}"
+  AND_n:                  -> "AND $#{@getUint8H()}"
   OR_r:       (reg)       -> "OR #{reg}"
-  OR_imm:                 -> "OR $#{@getUint8H()}"
+  OR_n:                   -> "OR $#{@getUint8H()}"
   XOR_r:      (reg)       -> "XOR #{reg}"
-  XOR_imm:                -> "XOR $#{@getUint8H()}"
+  XOR_n:                  -> "XOR $#{@getUint8H()}"
   CP_r:       (reg)       -> "CP #{reg}"
-  CP_imm:                 -> "CP $#{@getUint8H()}"
+  CP_n:                   -> "CP $#{@getUint8H()}"
   INC_r:      (reg)       -> "INC #{reg}"
   DEC_r:      (reg)       -> "DEC #{reg}"
   ADD_HL_r:   (reg)       -> "ADD HL, #{reg}"
-  ADD_SP_imm:             -> "ADD SP, $#{@getUint8H()}"
-  RST_n:      (add)       -> "RST $#{add}"
+  ADD_SP_n:               -> "ADD SP, $#{@getUint8H()}"
+  RST:        (add)       -> "RST $#{add}"
   RET_cc:     (cond)      -> "RET #{cond}"
 
   # Jumps are loosely tracked to avoid disassembling data:
@@ -192,10 +197,6 @@ class Disassembler
     unless opcode?
       return { end: true }
 
-    # TODO: (or not): The following is repetitive. Eventually we might want
-    #                 to refactor this by dynamically creating a jump table
-    #                 of sorts, although I do like the simplicity and
-    #                 readability of the current approach.
     switch opcode
 
       # LD nn, n
@@ -276,7 +277,7 @@ class Disassembler
       when 0x1A then @LD_A_r('(DE)')
       when 0x7E then @LD_A_r('(HL)')
       when 0xFA then @LD_A_NN()
-      when 0x3E then @LD_A_imm()
+      when 0x3E then @LD_A_n()
 
       # LD n, A
       when 0x47 then @LD_r_A('B')
@@ -341,7 +342,7 @@ class Disassembler
       when 0x84 then @ADD_A_r('H')
       when 0x85 then @ADD_A_r('L')
       when 0x86 then @ADD_A_r('(HL)')
-      when 0xC6 then @ADD_A_imm()
+      when 0xC6 then @ADD_A_n()
 
       # ADC A, n
       when 0x8F then @ADC_A_r('A')
@@ -352,7 +353,7 @@ class Disassembler
       when 0x8C then @ADC_A_r('H')
       when 0x8D then @ADC_A_r('L')
       when 0x8E then @ADC_A_r('(HL)')
-      when 0xCE then @ADC_A_imm()
+      when 0xCE then @ADC_A_n()
 
       # SUB n
       when 0x97 then @SUB_r('A')
@@ -363,7 +364,7 @@ class Disassembler
       when 0x94 then @SUB_r('H')
       when 0x95 then @SUB_r('L')
       when 0x96 then @SUB_r('(HL)')
-      when 0xD6 then @SUB_imm()
+      when 0xD6 then @SUB_n()
 
       # SBC A, n
       when 0x9F then @SBC_A_r('A')
@@ -374,7 +375,7 @@ class Disassembler
       when 0x9C then @SBC_A_r('H')
       when 0x9D then @SBC_A_r('L')
       when 0x9E then @SBC_A_r('(HL)')
-      when 0xDE then @SBC_A_imm()
+      when 0xDE then @SBC_A_n()
 
       # AND n
       when 0xA7 then @AND_r('A')
@@ -385,7 +386,7 @@ class Disassembler
       when 0xA4 then @AND_r('H')
       when 0xA5 then @AND_r('L')
       when 0xA6 then @AND_r('(HL)')
-      when 0xE6 then @AND_imm()
+      when 0xE6 then @AND_n()
 
       # OR n
       when 0xB7 then @OR_r('A')
@@ -396,7 +397,7 @@ class Disassembler
       when 0xB4 then @OR_r('H')
       when 0xB5 then @OR_r('L')
       when 0xB6 then @OR_r('(HL)')
-      when 0xF6 then @OR_imm()
+      when 0xF6 then @OR_n()
 
       # XOR n
       when 0xAF then @XOR_r('A')
@@ -407,7 +408,7 @@ class Disassembler
       when 0xAC then @XOR_r('H')
       when 0xAD then @XOR_r('L')
       when 0xAE then @XOR_r('(HL)')
-      when 0xEE then @XOR_imm()
+      when 0xEE then @XOR_n()
 
       # CP n
       when 0xBF then @CP_r('A')
@@ -418,7 +419,7 @@ class Disassembler
       when 0xBC then @CP_r('H')
       when 0xBD then @CP_r('L')
       when 0xBE then @CP_r('(HL)')
-      when 0xFE then @CP_imm()
+      when 0xFE then @CP_n()
 
       # INC n
       when 0x3C then @INC_r('A')
@@ -447,7 +448,7 @@ class Disassembler
       when 0x39 then @ADD_HL_r('SP')
 
       # ADD SP, n
-      when 0xE8 then @ADD_SP_imm()
+      when 0xE8 then @ADD_SP_n()
 
       # INC nn
       when 0x03 then @INC_r('BC')
@@ -474,7 +475,7 @@ class Disassembler
       # HALT
       when 0x76 then 'HALT'
       # STOP
-      when 0x10 then 'STOP' # Does this require a NOP to follow?
+      when 0x10 then 'STOP'
       # DI
       when 0xF3 then 'DI'
       # EI
@@ -518,14 +519,14 @@ class Disassembler
       when 0xDC then @CALL_cc_nn('C')
 
       # RST n
-      when 0xC7 then @RST_n(0x00)
-      when 0xCF then @RST_n(0x08)
-      when 0xD7 then @RST_n(0x10)
-      when 0xDF then @RST_n(0x18)
-      when 0xE7 then @RST_n(0x20)
-      when 0xEF then @RST_n(0x28)
-      when 0xF7 then @RST_n(0x30)
-      when 0xFF then @RST_n(0x38)
+      when 0xC7 then @RST(0x00)
+      when 0xCF then @RST(0x08)
+      when 0xD7 then @RST(0x10)
+      when 0xDF then @RST(0x18)
+      when 0xE7 then @RST(0x20)
+      when 0xEF then @RST(0x28)
+      when 0xF7 then @RST(0x30)
+      when 0xFF then @RST(0x38)
 
       # RET
       when 0xC9 then @RET()
@@ -637,7 +638,7 @@ class Disassembler
                 'RES'
               else if opcode2 >= 0xC0 and opcode2 <= 0xFF
                 'SET'
-            
+
             # Bit
             bit = (opcode2 >> 3) & 0x7
             mnemonic += " #{bit}"
