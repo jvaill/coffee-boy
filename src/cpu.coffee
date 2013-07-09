@@ -914,7 +914,6 @@ class CPU
     unless opcode?
       return false
 
-
     switch opcode
 
       # LD nn, n
