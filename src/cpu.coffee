@@ -31,6 +31,7 @@ class Params
 
     # Immediates
     UI8:  get: -> n = @MMU.Get(@PC);       @PC += 1; n
+    SI8:  get: -> n = @MMU.GetInt8(@PC);   @PC += 1; n
     UI16: get: -> n = @MMU.GetUint16(@PC); @PC += 2; n
 
     # Immediate as a pointer into memory
@@ -109,26 +110,9 @@ class CPU
 
     @params.Reset()
 
-  # Unsigned
-
-  getUint8:  -> @params.UI8
-  getUint16: -> @params.UI16
-
-  # Signed
-
-  getInt8: ->
-    byte = @getUint8()
-
-    # Two's complement
-    sign = (byte >> 7) & 0x1
-    if sign
-      byte = -((byte ^ 0xFF) + 1)
-
-    byte
-
   getRelInt8JmpAddress: ->
     # Order matters
-    @getInt8() + @params.PC
+    @params.SI8 + @params.PC
 
   # Opcodes are gathered from:
   #   - http://meatfighter.com/gameboy/GBCPUman.pdf
@@ -168,13 +152,13 @@ class CPU
     @params.HL++
 
   LDH_N_A: ->
-    @mmu.Set 0xFF00 + @getUint8(), @params.A
+    @mmu.Set 0xFF00 + @params.UI8, @params.A
 
   LDH_A_N: ->
-    @params.A = @mmu.Get(0xFF00 + @getUint8())
+    @params.A = @mmu.Get(0xFF00 + @params.UI8)
 
   LDHL_SP_n: ->
-    n = @getInt8()
+    n = @params.SI8
 
     @params.Flags.Z = 0
     @params.Flags.N = 0
@@ -184,7 +168,7 @@ class CPU
     @params.HL = (@params.SP + n) & 0xFFFF
 
   LD_NN_SP: ->
-    address = @getUint16()
+    address = @params.UI16
     @mmu.Set address,     @params.SP & 0xFF
     @mmu.Set address + 1, (@params.SP >> 8) & 0xFF
 
@@ -307,7 +291,7 @@ class CPU
     @params.HL = sum
 
   ADD_SP_n: ->
-    n   = @getInt8()
+    n   = @params.SI8
     sum = (@params.SP + n) & 0xFFFF
 
     @params.Flags.Z = 0
@@ -425,7 +409,7 @@ class CPU
     @params.A = n
 
   JP_nn: (cond) ->
-    address = @getUint16()
+    address = @params.UI16
     if @params.CheckFlag(cond)
       @params.PC = address
 
@@ -438,7 +422,7 @@ class CPU
       @params.PC = address
 
   CALL_nn: (cond) ->
-    address = @getUint16()
+    address = @params.UI16
     if @params.CheckFlag(cond)
       @PUSH_r('PC')
       @params.PC = address
@@ -556,7 +540,7 @@ class CPU
     @params[reg] &= ~(1 << bit)
 
   executeOpcode: ->
-    opcode = @getUint8()
+    opcode = @params.UI8
     unless opcode?
       return false
 
@@ -905,7 +889,7 @@ class CPU
 
       # Ext ops
       when 0xCB
-        opcode2 = @getUint8()
+        opcode2 = @params.UI8
 
         switch opcode2
 
