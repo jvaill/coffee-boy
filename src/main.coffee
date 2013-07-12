@@ -28,7 +28,7 @@ updateRegisters = ->
 
   html = ''
   for register in registers
-    value = cpu.regs[register].toString(16)
+    value = cpu.params[register].toString(16)
     html += "<li>#{register}: $#{value}</li>"
 
   $('#registers').html(html)
@@ -36,17 +36,17 @@ updateRegisters = ->
 drawVideo = ->
   # Vblank available.
   # Different code looks at different scanlines. Hack.
-  if cpu.memory[0xFF44] == 0x91
-    cpu.memory[0xFF44] = 0x90
+  if mmu.memory[0xFF44] == 0x91
+    mmu.memory[0xFF44] = 0x90
   else
-    cpu.memory[0xFF44] = 0x91
+    mmu.memory[0xFF44] = 0x91
 
   ctx = $('#canvas').get(0).getContext('2d')
   ctx.clearRect(0, 0, 300, 300)
   ctx.fillStyle = "black"
 
   drawTile = (tileIndex, x, y) ->
-    # y += cpu.memory[0xFF42]
+    # y += mmu.memory[0xFF42]
 
     # Tiles are 16 bytes long.
     baseIndex = 0x8000 + tileIndex * 16
@@ -54,8 +54,8 @@ drawVideo = ->
     # 8 rows.
     for y2 in [0...8]
       rowIndex = baseIndex + y2 * 2
-      tiles  = cpu.memory[rowIndex]
-      tiles2 = cpu.memory[rowIndex + 1]
+      tiles  = mmu.memory[rowIndex]
+      tiles2 = mmu.memory[rowIndex + 1]
 
       for i in [0...8]
         # Mono color for now, beurk.
@@ -65,7 +65,7 @@ drawVideo = ->
   # 32x32 tiles per background.
   for x in [0...32]
     for y in [0...32]
-      mapIdx = cpu.memory[0x9800 + x + y * 32]
+      mapIdx = mmu.memory[0x9800 + x + y * 32]
       drawTile mapIdx, x * 8, y * 8
 
 step = ->
@@ -84,15 +84,17 @@ step = ->
   unless isPaused
     requestAnimationFrame step
 
+window.mmu = new MMU()
 window.cpu = new CPU()
+window.cpu.MMU = window.mmu
 
 $ ->
   updateRegisters()
-  $('#memory').hexView(cpu.memory)
+  $('#memory').hexView(mmu.memory)
 
   $('#step').click ->
     step()
-    $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+    $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
     $('#memory').hexView('Refresh')
     updateRegisters()
 
@@ -102,7 +104,7 @@ $ ->
     if isPaused
       $(this).text('Resume')
       $('#step').removeAttr('disabled')
-      $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+      $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
       $('#memory').hexView('Refresh')
       updateRegisters()
     else
@@ -128,9 +130,9 @@ $ ->
       cpu.something = =>
         $('#disassembly').disassemblyView 'DisassemblyLengthChanged'
       $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
-        cpu.breakpoints = breakpoints
+        cpu.Breakpoints = breakpoints
 
       # Scrappy emulate.
       cpu.LoadCode tmp
-      $('#disassembly').disassemblyView('SetPC', cpu.regs.PC)
+      $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
       $('#memory').hexView('Refresh')

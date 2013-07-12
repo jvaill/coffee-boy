@@ -1,85 +1,118 @@
-class CPU
+# Responsible for holding the processor's registers and flags.
+# Also contains related properties for dealing with instructions.
+class Params
   REG_PAIRS = ['AF', 'BC', 'DE', 'HL']
 
-  class Regs
-    constructor: ->
-      Object.defineProperties this, this.properties
-      delete this.properties
+  MMU: null
 
-      # Create a property for each register pair
-      for regPair in REG_PAIRS
-        [regA, regB] = [regPair[0], regPair[1]]
+  # Registers
+  PC: 0, SP: 0
+  A: 0, B: 0, C: 0, D: 0, E: 0
+  H: 0, L: 0
 
-        do (regA, regB) =>
-          property =
-            get: -> (@[regA] << 8) + @[regB]
-            set: (value) ->
-              @[regA] = (value >> 8) & 0xFF
-              @[regB] = value & 0xFF
+  Flags:
+    Z: 0, N: 0, H: 0, C: 0
 
-          Object.defineProperty this, regPair, property
+  properties:
+    F:
+      get: ->
+        flags = 0
+        if @Flags.Z then flags |= 0x80
+        if @Flags.N then flags |= 0x40
+        if @Flags.H then flags |= 0x20
+        if @Flags.C then flags |= 0x10
+        flags
 
-    # Registers
-    PC: 0, SP: 0
-    A: 0, B: 0, C: 0, D: 0, E: 0
-    H: 0, L: 0
+      set: (value) ->
+        @Flags.Z = (value & 0x80) > 0
+        @Flags.N = (value & 0x40) > 0
+        @Flags.H = (value & 0x20) > 0
+        @Flags.C = (value & 0x10) > 0
 
-    flags:
-      Z: 0, N: 0, H: 0, C: 0
+    # Immediates
+    UI8:  get: -> n = @MMU.Get(@PC);       @PC += 1; n
+    UI16: get: -> n = @MMU.GetUint16(@PC); @PC += 2; n
 
-    properties:
-      F:
-        get: ->
-          flags = 0
-          if @flags.Z then flags |= 0x80
-          if @flags.N then flags |= 0x40
-          if @flags.H then flags |= 0x20
-          if @flags.C then flags |= 0x10
-          flags
-
-        set: (value) ->
-          @flags.Z = (value & 0x80) > 0
-          @flags.N = (value & 0x40) > 0
-          @flags.H = (value & 0x20) > 0
-          @flags.C = (value & 0x10) > 0
-
-  regs:        new Regs()
-  memory:      null
-  buffer:      null
-  breakpoints: null
+    # Immediate as a pointer into memory
+    '(UI16)':
+      get:         -> @MMU.Get(@UI16)
+      set: (value) -> @MMU.Set(@UI16, value)
 
   constructor: ->
-    @reset()
+    Object.defineProperties this, this.properties
+    delete this.properties
+
+    # Create properties for register pairs.
+    for regPair in REG_PAIRS
+      [regA, regB] = [regPair[0], regPair[1]]
+
+      # Register pair
+      do (regA, regB) =>
+        property =
+          get: ->
+            (@[regA] << 8) + @[regB]
+
+          set: (value) ->
+            @[regA] = (value >> 8) & 0xFF
+            @[regB] = value & 0xFF
+
+        Object.defineProperty this, regPair, property
+
+      # Pointers into memory
+      do (regPair) =>
+        property =
+          get: ->
+            @MMU.Get @[regPair]
+
+          set: (value) ->
+            @MMU.Set @[regPair], value
+
+        Object.defineProperty this, "(#{regPair})", property
+
+  Reset: =>
+    for reg in ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'F', 'PC', 'SP']
+      @reg = 0
+
+    for flag in ['Z', 'N', 'H', 'C']
+      @Flags[flag] = 0
+
+  CheckFlag: (cond) =>
+    switch cond
+      when 'Z'  then @Flags.Z
+      when 'C'  then @Flags.C
+      when 'NZ' then !@Flags.Z
+      when 'NC' then !@Flags.C
+      else true
+
+# The almighty core!
+class CPU
+  Breakpoints: null
+  params:      new Params()
+  mmu:         null
+
+  properties:
+    MMU:
+      get:         -> @mmu
+      set: (value) -> @mmu = @params.MMU = value
+
+  constructor: ->
+    Object.defineProperties this, this.properties
+    delete this.properties
 
   LoadCode: (buffer) ->
     unless buffer instanceof Uint8Array
       throw 'Input buffer must be of type Uint8Array.'
 
-    @buffer = buffer
+    # Kind of map the ROM where it belongs
+    for i in [0...buffer.byteLength]
+      @mmu.Set i, buffer[i]
 
-    # Kind of map the ROM where it belongs.
-    for i in [0...@buffer.byteLength]
-      @memory[i] = @buffer[i]
-
-    # @reset()
-
-  reset: ->
-    # Reset registers.
-    for reg in ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'F', 'PC', 'SP']
-      @regs[reg] = 0
-
-    for flag in ['Z', 'N', 'H', 'C']
-      @regs.flags[flag] = 0
-
-    @memory = new Array(0xFFFF + 1)
+    @params.Reset()
 
   # Unsigned
 
-  getUint8: ->
-    @memory[@regs.PC++]
-
-  getUint16: ->
-    @getUint8() + (@getUint8() << 8)
+  getUint8:  -> @params.UI8
+  getUint16: -> @params.UI16
 
   # Signed
 
@@ -95,7 +128,7 @@ class CPU
 
   getRelInt8JmpAddress: ->
     # Order matters
-    @getInt8() + @regs.PC
+    @getInt8() + @params.PC
 
   # Opcodes are gathered from:
   #   - http://meatfighter.com/gameboy/GBCPUman.pdf
@@ -103,445 +136,234 @@ class CPU
   #   - http://www.scribd.com/doc/39999184/GameBoy-Programming-Manual
   #
   # As conventions:
-  #   - 'r' represents a register
+  #   - 'r' represents a parameter (see Params object)
   #   - 'n' represents a byte
-  #   - 'rr' represents a pair of registers
+  #   - 'rr' represents a 16 bit parameter (see Params object)
   #   - 'nn' represents a 16 bit integer
   #   - Uppercase characters denote a pointer
 
-  LD_r_n: (reg) ->
-    @regs[reg] = @getUint8()
-
-  LD_R_n: (reg) ->
-    @memory[@regs[reg]] = @getUint8()
-
   LD_r_r2: (reg, reg2) ->
-    @regs[reg] = @regs[reg2]
-
-  LD_r_R2: (reg, reg2) ->
-    @regs[reg] = @memory[@regs[reg2]]
-
-  LD_R_r2: (reg, reg2) ->
-    @memory[@regs[reg]] = @regs[reg2]
-
-  LD_A_r: (reg) ->
-    @regs.A = @regs[reg]
-
-  LD_A_R: (reg) ->
-    @regs.A = @memory[@regs[reg]]
-
-  LD_A_NN: (reg) ->
-    @regs.A = @memory[@getUint16()]
-
-  LD_A_n: ->
-    @regs.A = @getUint8()
-
-  LD_r_A: (reg) ->
-    @regs[reg] = @regs.A
-
-  LD_R_A: (reg) ->
-    @memory[@regs[reg]] = @regs.A
-
-  LD_NN_A: ->
-    @memory[@getUint16()] = @regs.A
+    @params[reg] = @params[reg2]
 
   LDH_A_C: ->
-    @regs.A = @memory[0xFF00 + @regs.C]
+    @params.A = @mmu.Get(0xFF00 + @params.C)
 
   LDH_C_A: ->
-    @memory[0xFF00 + @regs.C] = @regs.A
+    @mmu.Set 0xFF00 + @params.C, @params.A
 
   LDD_A_HL: ->
-    @regs.A = @memory[@regs.HL]
-    @regs.HL--
+    @params.A = @mmu.Get(@params.HL)
+    @params.HL--
 
   LDD_HL_A: ->
-    @memory[@regs.HL] = @regs.A
-    @regs.HL--
+    @mmu.Set @params.HL, @params.A
+    @params.HL--
 
   LDI_A_HL: ->
-    @regs.A = @memory[@regs.HL]
-    @regs.HL++
+    @params.A = @mmu.Get(@params.HL)
+    @params.HL++
 
   LDI_HL_A: ->
-    @memory[@regs.HL] = @regs.A
-    @regs.HL++
+    @mmu.Set @params.HL, @params.A
+    @params.HL++
 
   LDH_N_A: ->
-    @memory[0xFF00 + @getUint8()] = @regs.A
+    @mmu.Set 0xFF00 + @getUint8(), @params.A
 
   LDH_A_N: ->
-    @regs.A = @memory[0xFF00 + @getUint8()]
-
-  LD_r_nn: (reg) ->
-    @regs[reg] = @getUint16()
-
-  LD_SP_HL: ->
-    @regs.SP = @regs.HL
+    @params.A = @mmu.Get(0xFF00 + @getUint8())
 
   LDHL_SP_n: ->
     n = @getInt8()
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = (((@params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @params.Flags.C = (((@params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.HL = (@regs.SP + n) & 0xFFFF
+    @params.HL = (@params.SP + n) & 0xFFFF
 
   LD_NN_SP: ->
     address = @getUint16()
-    @memory[address]     = @regs.SP & 0xFF
-    @memory[address + 1] = (@regs.SP >> 8) & 0xFF
+    @mmu.Set address,     @params.SP & 0xFF
+    @mmu.Set address + 1, (@params.SP >> 8) & 0xFF
 
   PUSH_r: (reg) ->
-    @regs.SP--
-    @memory[@regs.SP] = (@regs[reg] >> 8) & 0xFF
-    @regs.SP--
-    @memory[@regs.SP] = @regs[reg] & 0xFF
+    @params.SP--
+    @mmu.Set @params.SP, (@params[reg] >> 8) & 0xFF
+    @params.SP--
+    @mmu.Set @params.SP, @params[reg] & 0xFF
 
   POP_r: (reg) ->
-    byte  = @memory[@regs.SP]
-    @regs.SP++
-    byte2 = @memory[@regs.SP]
-    @regs.SP++
-    @regs[reg] = byte | (byte2 << 8)
+    byte  = @mmu.Get(@params.SP)
+    @params.SP++
+    byte2 = @mmu.Get(@params.SP)
+    @params.SP++
+    @params[reg] = byte | (byte2 << 8)
 
   ADD_A_r: (reg) ->
-    n   = @regs[reg]
-    sum = (@regs.A + n) & 0xFF
+    n   = @params[reg]
+    sum = (@params.A + n) & 0xFF
 
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @params.Flags.Z = sum == 0
+    @params.Flags.N = 0
+    @params.Flags.H = (((@params.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @params.Flags.C = (((@params.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.A = sum
-
-  ADD_A_R: (reg) ->
-    n   = @memory[@regs[reg]]
-    sum = (@regs.A + n) & 0xFF
-
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
-
-    @regs.A = sum
-
-  ADD_A_n: ->
-    n   = @getUint8()
-    sum = (@regs.A + n) & 0xFF
-
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
-
-    @regs.A = sum
+    @params.A = sum
 
   ADC_A_r: (reg) ->
-    n   = @regs[reg]
-    sum = (@regs.A + n + @regs.flags.C) & 0xFF
+    n   = @params[reg]
+    sum = (@params.A + n + @params.Flags.C) & 0xFF
 
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
+    @params.Flags.Z = sum == 0
+    @params.Flags.N = 0
+    @params.Flags.H = (((@params.A & 0xF)  + (n & 0xF)  + @params.Flags.C) & 0x10)  > 0
+    @params.Flags.C = (((@params.A & 0xFF) + (n & 0xFF) + @params.Flags.C) & 0x100) > 0
 
-    @regs.A = sum
-
-  ADC_A_R: (reg) ->
-    n   = @memory[@regs[reg]]
-    sum = (@regs.A + n + @regs.flags.C) & 0xFF
-
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
-
-    @regs.A = sum
-
-  ADC_A_n: ->
-    n   = @getUint8()
-    sum = (@regs.A + n + @regs.flags.C) & 0xFF
-
-    @regs.flags.Z = sum == 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.A & 0xF)  + (n & 0xF)  + @regs.flags.C) & 0x10)  > 0
-    @regs.flags.C = (((@regs.A & 0xFF) + (n & 0xFF) + @regs.flags.C) & 0x100) > 0
-
-    @regs.A = sum
+    @params.A = sum
 
   SUB_r: (reg) ->
-    n    = @regs[reg]
-    diff = (@regs.A - n) & 0xFF
+    n    = @params[reg]
+    diff = (@params.A - n) & 0xFF
 
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
+    @params.Flags.Z = diff == 0
+    @params.Flags.N = 1
+    @params.Flags.H = (@params.A & 0xF) < (n & 0xF)
+    @params.Flags.C = @params.A < n
 
-    @regs.A = diff
-
-  SUB_R: (reg) ->
-    n    = @memory[@regs[reg]]
-    diff = (@regs.A - n) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
-
-    @regs.A = diff
-
-  SUB_n: ->
-    n    = @getUint8()
-    diff = (@regs.A - n) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
-
-    @regs.A = diff
+    @params.A = diff
 
   SBC_A_r: (reg) ->
-    n    = @regs[reg]
-    diff = (@regs.A - n - @regs.flags.C) & 0xFF
+    n    = @params[reg]
+    diff = (@params.A - n - @params.Flags.C) & 0xFF
 
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
-    @regs.flags.C = @regs.A < n + @regs.flags.C
+    @params.Flags.Z = diff == 0
+    @params.Flags.N = 1
+    @params.Flags.H = (@params.A & 0xF) < (n & 0xF) + @params.Flags.C
+    @params.Flags.C = @params.A < n + @params.Flags.C
 
-    @regs.A = diff
-
-  SBC_A_R: (reg) ->
-    n    = @memory[@regs[reg]]
-    diff = (@regs.A - n - @regs.flags.C) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
-    @regs.flags.C = @regs.A < n + @regs.flags.C
-
-    @regs.A = diff
-
-  SBC_A_n: ->
-    n    = @getUint8()
-    diff = (@regs.A - n - @regs.flags.C) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF) + @regs.flags.C
-    @regs.flags.C = @regs.A < n + @regs.flags.C
-
-    @regs.A = diff
+    @params.A = diff
 
   AND_r: (reg) ->
-    @regs.A &= @regs[reg]
+    @params.A &= @params[reg]
 
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-    @regs.flags.C = 0
-
-  AND_R: (reg) ->
-    @regs.A &= @memory[@regs[reg]]
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-    @regs.flags.C = 0
-
-  AND_n: (reg) ->
-    @regs.A &= @getUint8()
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-    @regs.flags.C = 0
+    @params.Flags.Z = @params.A == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 1
+    @params.Flags.C = 0
 
   OR_r: (reg) ->
-    @regs.A |= @regs[reg]
+    @params.A |= @params[reg]
 
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  OR_R: (reg) ->
-    @regs.A |= @memory[@regs[reg]]
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  OR_n: ->
-    @regs.A |= @getUint8()
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
+    @params.Flags.Z = @params.A == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = 0
 
   XOR_r: (reg) ->
-    @regs.A ^= @regs[reg]
+    @params.A ^= @params[reg]
 
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  XOR_R: (reg) ->
-    @regs.A ^= @memory[@regs[reg]]
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-  XOR_n: ->
-    @regs.A ^= @getUint8()
-
-    @regs.flags.Z = @regs.A == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
+    @params.Flags.Z = @params.A == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = 0
 
   CP_r: (reg) ->
-    n    = @regs[reg]
-    diff = (@regs.A - n) & 0xFF
+    n    = @params[reg]
+    diff = (@params.A - n) & 0xFF
 
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
-
-  CP_R: (reg) ->
-    n    = @memory[@regs[reg]]
-    diff = (@regs.A - n) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
-
-  CP_n: (reg) ->
-    n    = @getUint8()
-    diff = (@regs.A - n) & 0xFF
-
-    @regs.flags.Z = diff == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (@regs.A & 0xF) < (n & 0xF)
-    @regs.flags.C = @regs.A < n
+    @params.Flags.Z = diff == 0
+    @params.Flags.N = 1
+    @params.Flags.H = (@params.A & 0xF) < (n & 0xF)
+    @params.Flags.C = @params.A < n
 
   INC_r: (reg) ->
-    n = (@regs[reg] + 1) & 0xFF
+    n = (@params[reg] + 1) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = !(n & 0xF)
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = !(n & 0xF)
 
-    @regs[reg] = n
-
-  INC_R: (reg) ->
-    n = (@memory[@regs[reg]] + 1) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = !(n & 0xF)
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   DEC_r: (reg) ->
-    n = (@regs[reg] - 1) & 0xFF
+    n = (@params[reg] - 1) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (n & 0xF) == 0xF
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 1
+    @params.Flags.H = (n & 0xF) == 0xF
 
-    @regs[reg] = n
-
-  DEC_R: (reg) ->
-    n = (@memory[@regs[reg]] - 1) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 1
-    @regs.flags.H = (n & 0xF) == 0xF
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   ADD_HL_r: (reg) ->
-    n   = @regs[reg]
-    sum = (@regs.HL + @regs[reg]) & 0xFFFF
+    n   = @params[reg]
+    sum = (@params.HL + @params[reg]) & 0xFFFF
 
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.HL & 0xFFF)  + (n & 0xFFF))  & 0x1000)  > 0
-    @regs.flags.C = (((@regs.HL & 0xFFFF) + (n & 0xFFFF)) & 0x10000) > 0
+    @params.Flags.N = 0
+    @params.Flags.H = (((@params.HL & 0xFFF)  + (n & 0xFFF))  & 0x1000)  > 0
+    @params.Flags.C = (((@params.HL & 0xFFFF) + (n & 0xFFFF)) & 0x10000) > 0
 
-    @regs.HL = sum
+    @params.HL = sum
 
   ADD_SP_n: ->
     n   = @getInt8()
-    sum = (@regs.SP + n) & 0xFFFF
+    sum = (@params.SP + n) & 0xFFFF
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = (((@regs.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @regs.flags.C = (((@regs.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = (((@params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @params.Flags.C = (((@params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @regs.SP = sum
+    @params.SP = sum
 
   INC_rr: (reg) ->
-    @regs[reg] = (@regs[reg] + 1) & 0xFFFF
+    @params[reg] = (@params[reg] + 1) & 0xFFFF
 
   DEC_rr: (reg) ->
-    @regs[reg] = (@regs[reg] - 1) & 0xFFFF
+    @params[reg] = (@params[reg] - 1) & 0xFFFF
 
   DAA: ->
     # Based on: http://forums.nesdev.com/viewtopic.php?t=9088
-    n = @regs.A
+    n = @params.A
 
-    unless @regs.flags.N
-      if @regs.flags.H || (n & 0xF) > 9
+    unless @params.Flags.N
+      if @params.Flags.H || (n & 0xF) > 9
         n += 0x06
 
-      if @regs.flags.C || (n > 0x9F)
+      if @params.Flags.C || (n > 0x9F)
         n += 0x60
     else
-      if @regs.flags.H
+      if @params.Flags.H
         n = (n - 6) & 0xFF
 
-      if @regs.flags.C
+      if @params.Flags.C
         n -= 0x60
 
     if (n & 0x100) == 0x100
-      @regs.flags.C = 1
+      @params.Flags.C = 1
 
     n &= 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.H = 0
+    @params.Flags.Z = n == 0
+    @params.Flags.H = 0
 
-    @regs.A = n
+    @params.A = n
 
   CPL: ->
-    @regs.flags.N = 1
-    @regs.flags.H = 1
-    @regs.A ^= 0xFF
+    @params.Flags.N = 1
+    @params.Flags.H = 1
+    @params.A ^= 0xFF
 
   CCF: ->
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = !@regs.flags.C
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = !@params.Flags.C
 
   SCF: ->
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 1
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = 1
 
   NOP: ->
     # Nothing to see here.
@@ -559,355 +381,179 @@ class CPU
     console.log 'EI is not implemented!'
 
   RLCA: ->
-    carry = @regs.A >> 7
-    n     = ((@regs.A << 1) | carry) & 0xFF
+    carry = @params.A >> 7
+    n     = ((@params.A << 1) | carry) & 0xFF
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs.A = n
+    @params.A = n
 
   RLA: ->
-    carry = @regs.A >> 7
-    n     = ((@regs.A << 1) | @regs.flags.C) & 0xFF
+    carry = @params.A >> 7
+    n     = ((@params.A << 1) | @params.Flags.C) & 0xFF
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs.A = n
+    @params.A = n
 
   RRCA: ->
-    carry = @regs.A & 0x1
-    n     = ((@regs.A >> 1) | (carry << 7)) & 0xFF
+    carry = @params.A & 0x1
+    n     = ((@params.A >> 1) | (carry << 7)) & 0xFF
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs.A = n
+    @params.A = n
 
   RRA: ->
-    carry = @regs.A & 1
-    n     = ((@regs.A >> 1) | (@regs.flags.C << 7)) & 0xFF
+    carry = @params.A & 1
+    n     = ((@params.A >> 1) | (@params.Flags.C << 7)) & 0xFF
 
-    @regs.flags.Z = 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs.A = n
+    @params.A = n
 
-  JP_nn: ->
-    @regs.PC = @getUint16()
-
-  JP_nz_nn: ->
+  JP_nn: (cond) ->
     address = @getUint16()
-    unless @regs.flags.Z
-      @regs.PC = address
-
-  JP_z_nn: ->
-    address = @getUint16()
-    if @regs.flags.Z
-      @regs.PC = address
-
-  JP_nc_nn: ->
-    address = @getUint16()
-    unless @regs.flags.C
-      @regs.PC = address
-
-  JP_c_nn: ->
-    address = @getUint16()
-    if @regs.flags.C
-      @regs.PC = address
+    if @params.CheckFlag(cond)
+      @params.PC = address
 
   JP_HL: ->
-    @regs.PC = @regs.HL
+    @params.PC = @params.HL
 
-  JR_n: ->
-    @regs.PC = @getRelInt8JmpAddress()
-
-  JR_nz_n: ->
+  JR_n: (cond) ->
     address = @getRelInt8JmpAddress()
-    unless @regs.flags.Z
-      @regs.PC = address
+    if @params.CheckFlag(cond)
+      @params.PC = address
 
-  JR_z_n: ->
-    address = @getRelInt8JmpAddress()
-    if @regs.flags.Z
-      @regs.PC = address
-
-  JR_nc_n: ->
-    address = @getRelInt8JmpAddress()
-    unless @regs.flags.C
-      @regs.PC = address
-
-  JR_c_n: ->
-    address = @getRelInt8JmpAddress()
-    if @regs.flags.C
-      @regs.PC = address
-
-  CALL_nn: ->
+  CALL_nn: (cond) ->
     address = @getUint16()
-    @PUSH_r('PC')
-    @regs.PC = address
-
-  CALL_nz_nn: ->
-    address = @getUint16()
-    unless @regs.flags.Z
+    if @params.CheckFlag(cond)
       @PUSH_r('PC')
-      @regs.PC = address
-
-  CALL_z_nn: ->
-    address = @getUint16()
-    if @regs.flags.Z
-      @PUSH_r('PC')
-      @regs.PC = address
-
-  CALL_nc_nn: ->
-    address = @getUint16()
-    unless @regs.flags.C
-      @PUSH_r('PC')
-      @regs.PC = address
-
-  CALL_c_nn: ->
-    address = @getUint16()
-    if @regs.flags.C
-      @PUSH_r('PC')
-      @regs.PC = address
+      @params.PC = address
 
   RST: ->
     console.log 'RST is not implemented!'
 
-  RET: ->
-    @POP_r('PC')
-
-  RET_nz: ->
-    unless @regs.flags.Z
-      @POP_r('PC')
-
-  RET_z: ->
-    if @regs.flags.Z
-      @POP_r('PC')
-
-  RET_nc: ->
-    unless @regs.flags.C
-      @POP_r('PC')
-
-  RET_c: ->
-    if @regs.flags.C
+  RET: (cond) ->
+    if @params.CheckFlag(cond)
       @POP_r('PC')
 
   RETI: ->
     console.log 'RETI is not implemented!'
 
   SWAP_r: (reg) ->
-    n      = @regs[reg]
+    n      = @params[reg]
     result = ((n << 4) | (n >> 4)) & 0xFF
 
-    @regs.flags.Z = result == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
+    @params.Flags.Z = result == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = 0
 
-    @regs[reg] = result
-
-  SWAP_R: (reg) ->
-    n      = @memory[@regs[reg]]
-    result = ((n << 4) | (n >> 4)) & 0xFF
-
-    @regs.flags.Z = result == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = 0
-
-    @memory[@regs[reg]] = result
+    @params[reg] = result
 
   RLC_r: (reg) ->
-    carry = @regs[reg] >> 7
-    n     = ((@regs[reg] << 1) | carry) & 0xFF
+    carry = @params[reg] >> 7
+    n     = ((@params[reg] << 1) | carry) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  RLC_R: (reg) ->
-    carry = @memory[@regs[reg]] >> 7
-    n     = ((@memory[@regs[reg]] << 1) | carry) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   RL_r: (reg) ->
-    carry = (@regs[reg] >> 7) & 0x1
-    n     = ((@regs[reg] << 1) | (@regs.flags.C)) & 0xFF
+    carry = (@params[reg] >> 7) & 0x1
+    n     = ((@params[reg] << 1) | (@params.Flags.C)) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  RL_R: (reg) ->
-    carry = (@memory[@regs[reg]] >> 7) & 0x1
-    n     = ((@memory[@regs[reg]] << 1) | (@regs.flags.C)) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   RRC_r: (reg) ->
-    carry = @regs[reg] & 0x1
-    n     = ((@regs[reg] >> 1) | (carry << 7)) & 0xFF
+    carry = @params[reg] & 0x1
+    n     = ((@params[reg] >> 1) | (carry << 7)) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  RRC_R: (reg) ->
-    carry = @memory[@regs[reg]] & 0x1
-    n     = ((@memory[@regs[reg]] >> 1) | (carry << 7)) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   RR_r: (reg) ->
-    carry = @regs[reg] & 1
-    n     = ((@regs[reg] >> 1) | (@regs.flags.C << 7)) & 0xFF
+    carry = @params[reg] & 1
+    n     = ((@params[reg] >> 1) | (@params.Flags.C << 7)) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  RR_R: (reg) ->
-    carry = @memory[@regs[reg]] & 1
-    n     = ((@memory[@regs[reg]] >> 1) | (@regs.flags.C << 7)) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   SLA_r: (reg) ->
-    n      = @regs[reg] << 1
+    n      = @params[reg] << 1
     result = n & 0xFF
 
-    @regs.flags.Z = result == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = (n & 0x100) > 0
+    @params.Flags.Z = result == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = (n & 0x100) > 0
 
-    @regs[reg] = result
-
-  SLA_R: (reg) ->
-    n      = @memory[@regs[reg]] << 1
-    result = n & 0xFF
-
-    @regs.flags.Z = result == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = (n & 0x100) > 0
-
-    @memory[@regs[reg]] = result
+    @params[reg] = result
 
   SRA_r: (reg) ->
-    carry = @regs[reg] & 1
-    msb   = @regs[reg] >> 7
-    n     = ((msb << 7) | (@regs[reg] >> 1)) & 0xFF
+    carry = @params[reg] & 1
+    msb   = @params[reg] >> 7
+    n     = ((msb << 7) | (@params[reg] >> 1)) & 0xFF
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  SRA_R: (reg) ->
-    carry = @memory[@regs[reg]] & 1
-    msb   = @memory[@regs[reg]] >> 7
-    n     = ((msb << 7) | (@memory[@regs[reg]] >> 1)) & 0xFF
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   SRL_r: (reg) ->
-    carry = @regs[reg] & 1
-    n     = @regs[reg] >> 1
+    carry = @params[reg] & 1
+    n     = @params[reg] >> 1
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 0
+    @params.Flags.C = carry
 
-    @regs[reg] = n
-
-  SRL_R: (reg) ->
-    carry = @memory[@regs[reg]] & 1
-    n     = @memory[@regs[reg]] >> 1
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 0
-    @regs.flags.C = carry
-
-    @memory[@regs[reg]] = n
+    @params[reg] = n
 
   BIT_b_r: (bit, reg) ->
-    n = @regs[reg] & (1 << bit)
+    n = @params[reg] & (1 << bit)
 
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
-
-  BIT_b_R: (bit, reg) ->
-    n = @memory[@regs[reg]] & (1 << bit)
-
-    @regs.flags.Z = n == 0
-    @regs.flags.N = 0
-    @regs.flags.H = 1
+    @params.Flags.Z = n == 0
+    @params.Flags.N = 0
+    @params.Flags.H = 1
 
   SET_b_r: (bit, reg) ->
-    @regs[reg] |= (1 << bit)
-
-  SET_b_R: (bit, reg) ->
-    @memory[@regs[reg]] |= (1 << bit)
+    @params[reg] |= (1 << bit)
 
   RES_b_r: (bit, reg) ->
-    @regs[reg] &= ~(1 << bit)
-
-  RES_b_R: (bit, reg) ->
-    @memory[@regs[reg]] &= ~(1 << bit)
+    @params[reg] &= ~(1 << bit)
 
   executeOpcode: ->
     opcode = @getUint8()
@@ -917,13 +563,13 @@ class CPU
     switch opcode
 
       # LD nn, n
-      when 0x06 then @LD_r_n('B')
-      when 0x0E then @LD_r_n('C')
-      when 0x16 then @LD_r_n('D')
-      when 0x1E then @LD_r_n('E')
-      when 0x26 then @LD_r_n('H')
-      when 0x2E then @LD_r_n('L')
-      when 0x36 then @LD_R_n('HL')
+      when 0x06 then @LD_r_r2('B', 'UI8')
+      when 0x0E then @LD_r_r2('C', 'UI8')
+      when 0x16 then @LD_r_r2('D', 'UI8')
+      when 0x1E then @LD_r_r2('E', 'UI8')
+      when 0x26 then @LD_r_r2('H', 'UI8')
+      when 0x2E then @LD_r_r2('L', 'UI8')
+      when 0x36 then @LD_r_r2('(HL)', 'UI8')
 
       # LD r1, r2
 
@@ -933,7 +579,7 @@ class CPU
       when 0x43 then @LD_r_r2('B', 'E')
       when 0x44 then @LD_r_r2('B', 'H')
       when 0x45 then @LD_r_r2('B', 'L')
-      when 0x46 then @LD_r_R2('B', 'HL')
+      when 0x46 then @LD_r_r2('B', '(HL)')
 
       when 0x48 then @LD_r_r2('C', 'B')
       when 0x49 then @LD_r_r2('C', 'C')
@@ -941,7 +587,7 @@ class CPU
       when 0x4B then @LD_r_r2('C', 'E')
       when 0x4C then @LD_r_r2('C', 'H')
       when 0x4D then @LD_r_r2('C', 'L')
-      when 0x4E then @LD_r_R2('C', 'HL')
+      when 0x4E then @LD_r_r2('C', '(HL)')
 
       when 0x50 then @LD_r_r2('D', 'B')
       when 0x51 then @LD_r_r2('D', 'C')
@@ -949,7 +595,7 @@ class CPU
       when 0x53 then @LD_r_r2('D', 'E')
       when 0x54 then @LD_r_r2('D', 'H')
       when 0x55 then @LD_r_r2('D', 'L')
-      when 0x56 then @LD_r_R2('D', 'HL')
+      when 0x56 then @LD_r_r2('D', '(HL)')
 
       when 0x58 then @LD_r_r2('E', 'B')
       when 0x59 then @LD_r_r2('E', 'C')
@@ -957,7 +603,7 @@ class CPU
       when 0x5B then @LD_r_r2('E', 'E')
       when 0x5C then @LD_r_r2('E', 'H')
       when 0x5D then @LD_r_r2('E', 'L')
-      when 0x5E then @LD_r_R2('E', 'HL')
+      when 0x5E then @LD_r_r2('E', '(HL)')
 
       when 0x60 then @LD_r_r2('H', 'B')
       when 0x61 then @LD_r_r2('H', 'C')
@@ -965,7 +611,7 @@ class CPU
       when 0x63 then @LD_r_r2('H', 'E')
       when 0x64 then @LD_r_r2('H', 'H')
       when 0x65 then @LD_r_r2('H', 'L')
-      when 0x66 then @LD_r_R2('H', 'HL')
+      when 0x66 then @LD_r_r2('H', '(HL)')
 
       when 0x68 then @LD_r_r2('L', 'B')
       when 0x69 then @LD_r_r2('L', 'C')
@@ -973,40 +619,40 @@ class CPU
       when 0x6B then @LD_r_r2('L', 'E')
       when 0x6C then @LD_r_r2('L', 'H')
       when 0x6D then @LD_r_r2('L', 'L')
-      when 0x6E then @LD_r_R2('L', 'HL')
+      when 0x6E then @LD_r_r2('L', '(HL)')
 
-      when 0x70 then @LD_R_r2('HL', 'B')
-      when 0x71 then @LD_R_r2('HL', 'C')
-      when 0x72 then @LD_R_r2('HL', 'D')
-      when 0x73 then @LD_R_r2('HL', 'E')
-      when 0x74 then @LD_R_r2('HL', 'H')
-      when 0x75 then @LD_R_r2('HL', 'L')
+      when 0x70 then @LD_r_r2('(HL)', 'B')
+      when 0x71 then @LD_r_r2('(HL)', 'C')
+      when 0x72 then @LD_r_r2('(HL)', 'D')
+      when 0x73 then @LD_r_r2('(HL)', 'E')
+      when 0x74 then @LD_r_r2('(HL)', 'H')
+      when 0x75 then @LD_r_r2('(HL)', 'L')
 
       # LD A, n
-      when 0x7F then @LD_A_r('A')
-      when 0x78 then @LD_A_r('B')
-      when 0x79 then @LD_A_r('C')
-      when 0x7A then @LD_A_r('D')
-      when 0x7B then @LD_A_r('E')
-      when 0x7C then @LD_A_r('H')
-      when 0x7D then @LD_A_r('L')
-      when 0x0A then @LD_A_R('BC')
-      when 0x1A then @LD_A_R('DE')
-      when 0x7E then @LD_A_R('HL')
-      when 0xFA then @LD_A_NN()
-      when 0x3E then @LD_A_n()
+      when 0x7F then @LD_r_r2('A', 'A')
+      when 0x78 then @LD_r_r2('A', 'B')
+      when 0x79 then @LD_r_r2('A', 'C')
+      when 0x7A then @LD_r_r2('A', 'D')
+      when 0x7B then @LD_r_r2('A', 'E')
+      when 0x7C then @LD_r_r2('A', 'H')
+      when 0x7D then @LD_r_r2('A', 'L')
+      when 0x0A then @LD_r_r2('A', '(BC)')
+      when 0x1A then @LD_r_r2('A', '(DE)')
+      when 0x7E then @LD_r_r2('A', '(HL)')
+      when 0xFA then @LD_r_r2('A', '(UI16)')
+      when 0x3E then @LD_r_r2('A', 'UI8')
 
       # LD n, A
-      when 0x47 then @LD_r_A('B')
-      when 0x4F then @LD_r_A('C')
-      when 0x57 then @LD_r_A('D')
-      when 0x5F then @LD_r_A('E')
-      when 0x67 then @LD_r_A('H')
-      when 0x6F then @LD_r_A('L')
-      when 0x02 then @LD_R_A('BC')
-      when 0x12 then @LD_R_A('DE')
-      when 0x77 then @LD_R_A('HL')
-      when 0xEA then @LD_NN_A()
+      when 0x47 then @LD_r_r2('B', 'A')
+      when 0x4F then @LD_r_r2('C', 'A')
+      when 0x57 then @LD_r_r2('D', 'A')
+      when 0x5F then @LD_r_r2('E', 'A')
+      when 0x67 then @LD_r_r2('H', 'A')
+      when 0x6F then @LD_r_r2('L', 'A')
+      when 0x02 then @LD_r_r2('(BC)', 'A')
+      when 0x12 then @LD_r_r2('(DE)', 'A')
+      when 0x77 then @LD_r_r2('(HL)', 'A')
+      when 0xEA then @LD_r_r2('(UI16)', 'A')
 
       # LDH A, (C)
       when 0xF2 then @LDH_A_C()
@@ -1026,13 +672,13 @@ class CPU
       when 0xF0 then @LDH_A_N()
 
       # LD n, nn
-      when 0x01 then @LD_r_nn('BC')
-      when 0x11 then @LD_r_nn('DE')
-      when 0x21 then @LD_r_nn('HL')
-      when 0x31 then @LD_r_nn('SP')
+      when 0x01 then @LD_r_r2('BC', 'UI16')
+      when 0x11 then @LD_r_r2('DE', 'UI16')
+      when 0x21 then @LD_r_r2('HL', 'UI16')
+      when 0x31 then @LD_r_r2('SP', 'UI16')
 
       # LD SP, HL
-      when 0xF9 then @LD_SP_HL()
+      when 0xF9 then @LD_r_r2('SP', 'HL')
       # LDHL SP, n
       when 0xF8 then @LDHL_SP_n()
       # LD (nn), SP
@@ -1058,8 +704,8 @@ class CPU
       when 0x83 then @ADD_A_r('E')
       when 0x84 then @ADD_A_r('H')
       when 0x85 then @ADD_A_r('L')
-      when 0x86 then @ADD_A_R('HL')
-      when 0xC6 then @ADD_A_n()
+      when 0x86 then @ADD_A_r('(HL)')
+      when 0xC6 then @ADD_A_r('UI8')
 
       # ADC A, n
       when 0x8F then @ADC_A_r('A')
@@ -1069,8 +715,8 @@ class CPU
       when 0x8B then @ADC_A_r('E')
       when 0x8C then @ADC_A_r('H')
       when 0x8D then @ADC_A_r('L')
-      when 0x8E then @ADC_A_R('HL')
-      when 0xCE then @ADC_A_n()
+      when 0x8E then @ADC_A_r('(HL)')
+      when 0xCE then @ADC_A_r('UI8')
 
       # SUB n
       when 0x97 then @SUB_r('A')
@@ -1080,8 +726,8 @@ class CPU
       when 0x93 then @SUB_r('E')
       when 0x94 then @SUB_r('H')
       when 0x95 then @SUB_r('L')
-      when 0x96 then @SUB_R('HL')
-      when 0xD6 then @SUB_n()
+      when 0x96 then @SUB_r('(HL)')
+      when 0xD6 then @SUB_r('UI8')
 
       # SBC A, n
       when 0x9F then @SBC_A_r('A')
@@ -1091,8 +737,8 @@ class CPU
       when 0x9B then @SBC_A_r('E')
       when 0x9C then @SBC_A_r('H')
       when 0x9D then @SBC_A_r('L')
-      when 0x9E then @SBC_A_R('HL')
-      when 0xDE then @SBC_A_n()
+      when 0x9E then @SBC_A_r('(HL)')
+      when 0xDE then @SBC_A_r('UI8')
 
       # AND n
       when 0xA7 then @AND_r('A')
@@ -1102,8 +748,8 @@ class CPU
       when 0xA3 then @AND_r('E')
       when 0xA4 then @AND_r('H')
       when 0xA5 then @AND_r('L')
-      when 0xA6 then @AND_R('HL')
-      when 0xE6 then @AND_n()
+      when 0xA6 then @AND_r('(HL)')
+      when 0xE6 then @AND_r('UI8')
 
       # OR n
       when 0xB7 then @OR_r('A')
@@ -1113,8 +759,8 @@ class CPU
       when 0xB3 then @OR_r('E')
       when 0xB4 then @OR_r('H')
       when 0xB5 then @OR_r('L')
-      when 0xB6 then @OR_R('HL')
-      when 0xF6 then @OR_n()
+      when 0xB6 then @OR_r('(HL)')
+      when 0xF6 then @OR_r('UI8')
 
       # XOR n
       when 0xAF then @XOR_r('A')
@@ -1124,8 +770,8 @@ class CPU
       when 0xAB then @XOR_r('E')
       when 0xAC then @XOR_r('H')
       when 0xAD then @XOR_r('L')
-      when 0xAE then @XOR_R('HL')
-      when 0xEE then @XOR_n()
+      when 0xAE then @XOR_r('(HL)')
+      when 0xEE then @XOR_r('UI8')
 
       # CP n
       when 0xBF then @CP_r('A')
@@ -1135,8 +781,8 @@ class CPU
       when 0xBB then @CP_r('E')
       when 0xBC then @CP_r('H')
       when 0xBD then @CP_r('L')
-      when 0xBE then @CP_R('HL')
-      when 0xFE then @CP_n()
+      when 0xBE then @CP_r('(HL)')
+      when 0xFE then @CP_r('UI8')
 
       # INC n
       when 0x3C then @INC_r('A')
@@ -1146,7 +792,7 @@ class CPU
       when 0x1C then @INC_r('E')
       when 0x24 then @INC_r('H')
       when 0x2C then @INC_r('L')
-      when 0x34 then @INC_R('HL')
+      when 0x34 then @INC_r('(HL)')
 
       # DEC n
       when 0x3D then @DEC_r('A')
@@ -1156,7 +802,7 @@ class CPU
       when 0x1D then @DEC_r('E')
       when 0x25 then @DEC_r('H')
       when 0x2D then @DEC_r('L')
-      when 0x35 then @DEC_R('HL')
+      when 0x35 then @DEC_r('(HL)')
 
       # ADD HL, n
       when 0x09 then @ADD_HL_r('BC')
@@ -1210,10 +856,10 @@ class CPU
       when 0xC3 then @JP_nn()
 
       # JP cc, nn
-      when 0xC2 then @JP_nz_nn()
-      when 0xCA then @JP_z_nn()
-      when 0xD2 then @JP_nc_nn()
-      when 0xDA then @JP_c_nn()
+      when 0xC2 then @JP_nn('NZ')
+      when 0xCA then @JP_nn('Z')
+      when 0xD2 then @JP_nn('NC')
+      when 0xDA then @JP_nn('C')
 
       # JP (HL)
       when 0xE9 then @JP_HL()
@@ -1221,19 +867,19 @@ class CPU
       when 0x18 then @JR_n()
 
       # JR cc, n
-      when 0x20 then @JR_nz_n()
-      when 0x28 then @JR_z_n()
-      when 0x30 then @JR_nc_n()
-      when 0x38 then @JR_c_n()
+      when 0x20 then @JR_n('NZ')
+      when 0x28 then @JR_n('Z')
+      when 0x30 then @JR_n('NC')
+      when 0x38 then @JR_n('C')
 
       # CALL nn
       when 0xCD then @CALL_nn()
 
       # CALL cc, nn
-      when 0xC4 then @CALL_nz_nn()
-      when 0xCC then @CALL_z_nn()
-      when 0xD4 then @CALL_nc_nn()
-      when 0xDC then @CALL_c_nn()
+      when 0xC4 then @CALL_nn('NZ')
+      when 0xCC then @CALL_nn('Z')
+      when 0xD4 then @CALL_nn('NC')
+      when 0xDC then @CALL_nn('C')
 
       # RST n
       when 0xC7 then @RST(0x00)
@@ -1249,10 +895,10 @@ class CPU
       when 0xC9 then @RET()
 
       # RET cc
-      when 0xC0 then @RET_nz()
-      when 0xC8 then @RET_z()
-      when 0xD0 then @RET_nc()
-      when 0xD8 then @RET_c()
+      when 0xC0 then @RET('NZ')
+      when 0xC8 then @RET('Z')
+      when 0xD0 then @RET('NC')
+      when 0xD8 then @RET('C')
 
       # RETI
       when 0xD9 then @RETI()
@@ -1271,7 +917,7 @@ class CPU
           when 0x33 then @SWAP_r('E')
           when 0x34 then @SWAP_r('H')
           when 0x35 then @SWAP_r('L')
-          when 0x36 then @SWAP_R('HL')
+          when 0x36 then @SWAP_r('(HL)')
 
           # RLC n
           when 0x07 then @RLC_r('A')
@@ -1281,7 +927,7 @@ class CPU
           when 0x03 then @RLC_r('E')
           when 0x04 then @RLC_r('H')
           when 0x05 then @RLC_r('L')
-          when 0x06 then @RLC_R('HL')
+          when 0x06 then @RLC_r('(HL)')
 
           # RL n
           when 0x17 then @RL_r('A')
@@ -1291,7 +937,7 @@ class CPU
           when 0x13 then @RL_r('E')
           when 0x14 then @RL_r('H')
           when 0x15 then @RL_r('L')
-          when 0x16 then @RL_R('HL')
+          when 0x16 then @RL_r('(HL)')
 
           # RRC n
           when 0x0F then @RRC_r('A')
@@ -1301,7 +947,7 @@ class CPU
           when 0x0B then @RRC_r('E')
           when 0x0C then @RRC_r('H')
           when 0x0D then @RRC_r('L')
-          when 0x0E then @RRC_R('HL')
+          when 0x0E then @RRC_r('(HL)')
 
           # RR n
           when 0x1F then @RR_r('A')
@@ -1311,7 +957,7 @@ class CPU
           when 0x1B then @RR_r('E')
           when 0x1C then @RR_r('H')
           when 0x1D then @RR_r('L')
-          when 0x1E then @RR_R('HL')
+          when 0x1E then @RR_r('(HL)')
 
           # SLA n
           when 0x27 then @SLA_r('A')
@@ -1321,7 +967,7 @@ class CPU
           when 0x23 then @SLA_r('E')
           when 0x24 then @SLA_r('H')
           when 0x25 then @SLA_r('L')
-          when 0x26 then @SLA_R('HL')
+          when 0x26 then @SLA_r('(HL)')
 
           # SRA n
           when 0x2F then @SRA_r('A')
@@ -1331,7 +977,7 @@ class CPU
           when 0x2B then @SRA_r('E')
           when 0x2C then @SRA_r('H')
           when 0x2D then @SRA_r('L')
-          when 0x2E then @SRA_R('HL')
+          when 0x2E then @SRA_r('(HL)')
 
           # SRL n
           when 0x3F then @SRL_r('A')
@@ -1341,7 +987,7 @@ class CPU
           when 0x3B then @SRL_r('E')
           when 0x3C then @SRL_r('H')
           when 0x3D then @SRL_r('L')
-          when 0x3E then @SRL_R('HL')
+          when 0x3E then @SRL_r('(HL)')
 
           else
             unless opcode2 >= 0x40
@@ -1363,14 +1009,11 @@ class CPU
             registers = ['B', 'C', 'D', 'E', 'H', 'L', '(HL)', 'A']
             register  = registers[opcode2 & 0x7]
 
-            unless register == '(HL)'
-              @["#{command}_b_r"](bit, register)
-            else
-              @["#{command}_b_R"](bit, 'HL')
+            @["#{command}_b_r"](bit, register)
 
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
-    !@breakpoints?[@regs.PC]
+    !@Breakpoints?[@params.PC]
 
 window.CPU = CPU
