@@ -1,5 +1,12 @@
-# Responsible for holding the processor's registers and flags.
-# Also contains related properties for dealing with instructions.
+#
+# Responsible for holding the core's registers and flags.
+# Also defines properties used mainly as input to instructions (hence params).
+#
+# These properties are:
+#   - register pairs:       AF, BC, DE, HL
+#   - immediate reads:      UI8, SI8, UI16
+#   - pointers into memory: (AF), (BC), (DE), (HL), (UI16)
+#
 class Params
   REG_PAIRS = ['AF', 'BC', 'DE', 'HL']
 
@@ -36,8 +43,8 @@ class Params
 
     # Immediate as a pointer into memory
     '(UI16)':
-      get:         -> @MMU.Get(@UI16)
-      set: (value) -> @MMU.Set(@UI16, value)
+      get:         -> @MMU.Get @UI16
+      set: (value) -> @MMU.Set @UI16, value
 
   constructor: ->
     Object.defineProperties this, this.properties
@@ -59,7 +66,7 @@ class Params
 
         Object.defineProperty this, regPair, property
 
-      # Pointers into memory
+      # Register pair as a pointer into memory
       do (regPair) =>
         property =
           get: ->
@@ -72,7 +79,7 @@ class Params
 
   Reset: =>
     for reg in ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'F', 'PC', 'SP']
-      @reg = 0
+      @[reg] = 0
 
     for flag in ['Z', 'N', 'H', 'C']
       @Flags[flag] = 0
