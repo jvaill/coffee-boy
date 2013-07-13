@@ -1,6 +1,6 @@
 #
 # Responsible for holding the core's registers and flags.
-# Also defines properties used mainly as input to instructions (hence params).
+# Also defines properties used mainly as input to instructions (hence Params).
 #
 # These properties are:
 #   - register pairs:       AF, BC, DE, HL
@@ -93,33 +93,24 @@ class Params
       else true
 
 # The almighty core!
-class CPU
+class Core
   Breakpoints: null
-  params:      new Params()
+  Params:      new Params()
   mmu:         null
+  ime:         false
 
   properties:
     MMU:
       get:         -> @mmu
-      set: (value) -> @mmu = @params.MMU = value
+      set: (value) -> @mmu = @Params.MMU = value
 
   constructor: ->
     Object.defineProperties this, this.properties
     delete this.properties
 
-  LoadCode: (buffer) ->
-    unless buffer instanceof Uint8Array
-      throw 'Input buffer must be of type Uint8Array.'
-
-    # Kind of map the ROM where it belongs
-    for i in [0...buffer.byteLength]
-      @mmu.Set i, buffer[i]
-
-    @params.Reset()
-
   getRelInt8JmpAddress: ->
     # Order matters
-    @params.SI8 + @params.PC
+    @Params.SI8 + @Params.PC
 
   # Opcodes are gathered from:
   #   - http://meatfighter.com/gameboy/GBCPUman.pdf
@@ -134,227 +125,227 @@ class CPU
   #   - Uppercase characters denote a pointer
 
   LD_r_r2: (reg, reg2) ->
-    @params[reg] = @params[reg2]
+    @Params[reg] = @Params[reg2]
 
   LDH_A_C: ->
-    @params.A = @mmu.Get(0xFF00 + @params.C)
+    @Params.A = @mmu.Get(0xFF00 + @Params.C)
 
   LDH_C_A: ->
-    @mmu.Set 0xFF00 + @params.C, @params.A
+    @mmu.Set 0xFF00 + @Params.C, @Params.A
 
   LDD_A_HL: ->
-    @params.A = @mmu.Get(@params.HL)
-    @params.HL--
+    @Params.A = @mmu.Get(@Params.HL)
+    @Params.HL--
 
   LDD_HL_A: ->
-    @mmu.Set @params.HL, @params.A
-    @params.HL--
+    @mmu.Set @Params.HL, @Params.A
+    @Params.HL--
 
   LDI_A_HL: ->
-    @params.A = @mmu.Get(@params.HL)
-    @params.HL++
+    @Params.A = @mmu.Get(@Params.HL)
+    @Params.HL++
 
   LDI_HL_A: ->
-    @mmu.Set @params.HL, @params.A
-    @params.HL++
+    @mmu.Set @Params.HL, @Params.A
+    @Params.HL++
 
   LDH_N_A: ->
-    @mmu.Set 0xFF00 + @params.UI8, @params.A
+    @mmu.Set 0xFF00 + @Params.UI8, @Params.A
 
   LDH_A_N: ->
-    @params.A = @mmu.Get(0xFF00 + @params.UI8)
+    @Params.A = @mmu.Get(0xFF00 + @Params.UI8)
 
   LDHL_SP_n: ->
-    n = @params.SI8
+    n = @Params.SI8
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = (((@params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @params.Flags.C = (((@params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = (((@Params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @Params.Flags.C = (((@Params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @params.HL = (@params.SP + n) & 0xFFFF
+    @Params.HL = (@Params.SP + n) & 0xFFFF
 
   LD_NN_SP: ->
-    address = @params.UI16
-    @mmu.Set address,     @params.SP & 0xFF
-    @mmu.Set address + 1, (@params.SP >> 8) & 0xFF
+    address = @Params.UI16
+    @mmu.Set address,     @Params.SP & 0xFF
+    @mmu.Set address + 1, (@Params.SP >> 8) & 0xFF
 
   PUSH_r: (reg) ->
-    @params.SP--
-    @mmu.Set @params.SP, (@params[reg] >> 8) & 0xFF
-    @params.SP--
-    @mmu.Set @params.SP, @params[reg] & 0xFF
+    @Params.SP--
+    @mmu.Set @Params.SP, (@Params[reg] >> 8) & 0xFF
+    @Params.SP--
+    @mmu.Set @Params.SP, @Params[reg] & 0xFF
 
   POP_r: (reg) ->
-    byte  = @mmu.Get(@params.SP)
-    @params.SP++
-    byte2 = @mmu.Get(@params.SP)
-    @params.SP++
-    @params[reg] = byte | (byte2 << 8)
+    byte  = @mmu.Get(@Params.SP)
+    @Params.SP++
+    byte2 = @mmu.Get(@Params.SP)
+    @Params.SP++
+    @Params[reg] = byte | (byte2 << 8)
 
   ADD_A_r: (reg) ->
-    n   = @params[reg]
-    sum = (@params.A + n) & 0xFF
+    n   = @Params[reg]
+    sum = (@Params.A + n) & 0xFF
 
-    @params.Flags.Z = sum == 0
-    @params.Flags.N = 0
-    @params.Flags.H = (((@params.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @params.Flags.C = (((@params.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @Params.Flags.Z = sum == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = (((@Params.A & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @Params.Flags.C = (((@Params.A & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @params.A = sum
+    @Params.A = sum
 
   ADC_A_r: (reg) ->
-    n   = @params[reg]
-    sum = (@params.A + n + @params.Flags.C) & 0xFF
+    n   = @Params[reg]
+    sum = (@Params.A + n + @Params.Flags.C) & 0xFF
 
-    @params.Flags.Z = sum == 0
-    @params.Flags.N = 0
-    @params.Flags.H = (((@params.A & 0xF)  + (n & 0xF)  + @params.Flags.C) & 0x10)  > 0
-    @params.Flags.C = (((@params.A & 0xFF) + (n & 0xFF) + @params.Flags.C) & 0x100) > 0
+    @Params.Flags.Z = sum == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = (((@Params.A & 0xF)  + (n & 0xF)  + @Params.Flags.C) & 0x10)  > 0
+    @Params.Flags.C = (((@Params.A & 0xFF) + (n & 0xFF) + @Params.Flags.C) & 0x100) > 0
 
-    @params.A = sum
+    @Params.A = sum
 
   SUB_r: (reg) ->
-    n    = @params[reg]
-    diff = (@params.A - n) & 0xFF
+    n    = @Params[reg]
+    diff = (@Params.A - n) & 0xFF
 
-    @params.Flags.Z = diff == 0
-    @params.Flags.N = 1
-    @params.Flags.H = (@params.A & 0xF) < (n & 0xF)
-    @params.Flags.C = @params.A < n
+    @Params.Flags.Z = diff == 0
+    @Params.Flags.N = 1
+    @Params.Flags.H = (@Params.A & 0xF) < (n & 0xF)
+    @Params.Flags.C = @Params.A < n
 
-    @params.A = diff
+    @Params.A = diff
 
   SBC_A_r: (reg) ->
-    n    = @params[reg]
-    diff = (@params.A - n - @params.Flags.C) & 0xFF
+    n    = @Params[reg]
+    diff = (@Params.A - n - @Params.Flags.C) & 0xFF
 
-    @params.Flags.Z = diff == 0
-    @params.Flags.N = 1
-    @params.Flags.H = (@params.A & 0xF) < (n & 0xF) + @params.Flags.C
-    @params.Flags.C = @params.A < n + @params.Flags.C
+    @Params.Flags.Z = diff == 0
+    @Params.Flags.N = 1
+    @Params.Flags.H = (@Params.A & 0xF) < (n & 0xF) + @Params.Flags.C
+    @Params.Flags.C = @Params.A < n + @Params.Flags.C
 
-    @params.A = diff
+    @Params.A = diff
 
   AND_r: (reg) ->
-    @params.A &= @params[reg]
+    @Params.A &= @Params[reg]
 
-    @params.Flags.Z = @params.A == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 1
-    @params.Flags.C = 0
+    @Params.Flags.Z = @Params.A == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 1
+    @Params.Flags.C = 0
 
   OR_r: (reg) ->
-    @params.A |= @params[reg]
+    @Params.A |= @Params[reg]
 
-    @params.Flags.Z = @params.A == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = 0
+    @Params.Flags.Z = @Params.A == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = 0
 
   XOR_r: (reg) ->
-    @params.A ^= @params[reg]
+    @Params.A ^= @Params[reg]
 
-    @params.Flags.Z = @params.A == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = 0
+    @Params.Flags.Z = @Params.A == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = 0
 
   CP_r: (reg) ->
-    n    = @params[reg]
-    diff = (@params.A - n) & 0xFF
+    n    = @Params[reg]
+    diff = (@Params.A - n) & 0xFF
 
-    @params.Flags.Z = diff == 0
-    @params.Flags.N = 1
-    @params.Flags.H = (@params.A & 0xF) < (n & 0xF)
-    @params.Flags.C = @params.A < n
+    @Params.Flags.Z = diff == 0
+    @Params.Flags.N = 1
+    @Params.Flags.H = (@Params.A & 0xF) < (n & 0xF)
+    @Params.Flags.C = @Params.A < n
 
   INC_r: (reg) ->
-    n = (@params[reg] + 1) & 0xFF
+    n = (@Params[reg] + 1) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = !(n & 0xF)
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = !(n & 0xF)
 
-    @params[reg] = n
+    @Params[reg] = n
 
   DEC_r: (reg) ->
-    n = (@params[reg] - 1) & 0xFF
+    n = (@Params[reg] - 1) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 1
-    @params.Flags.H = (n & 0xF) == 0xF
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 1
+    @Params.Flags.H = (n & 0xF) == 0xF
 
-    @params[reg] = n
+    @Params[reg] = n
 
   ADD_HL_r: (reg) ->
-    n   = @params[reg]
-    sum = (@params.HL + @params[reg]) & 0xFFFF
+    n   = @Params[reg]
+    sum = (@Params.HL + @Params[reg]) & 0xFFFF
 
-    @params.Flags.N = 0
-    @params.Flags.H = (((@params.HL & 0xFFF)  + (n & 0xFFF))  & 0x1000)  > 0
-    @params.Flags.C = (((@params.HL & 0xFFFF) + (n & 0xFFFF)) & 0x10000) > 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = (((@Params.HL & 0xFFF)  + (n & 0xFFF))  & 0x1000)  > 0
+    @Params.Flags.C = (((@Params.HL & 0xFFFF) + (n & 0xFFFF)) & 0x10000) > 0
 
-    @params.HL = sum
+    @Params.HL = sum
 
   ADD_SP_n: ->
-    n   = @params.SI8
-    sum = (@params.SP + n) & 0xFFFF
+    n   = @Params.SI8
+    sum = (@Params.SP + n) & 0xFFFF
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = (((@params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
-    @params.Flags.C = (((@params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = (((@Params.SP & 0xF)  + (n & 0xF))  & 0x10)  > 0
+    @Params.Flags.C = (((@Params.SP & 0xFF) + (n & 0xFF)) & 0x100) > 0
 
-    @params.SP = sum
+    @Params.SP = sum
 
   INC_rr: (reg) ->
-    @params[reg] = (@params[reg] + 1) & 0xFFFF
+    @Params[reg] = (@Params[reg] + 1) & 0xFFFF
 
   DEC_rr: (reg) ->
-    @params[reg] = (@params[reg] - 1) & 0xFFFF
+    @Params[reg] = (@Params[reg] - 1) & 0xFFFF
 
   DAA: ->
     # Based on: http://forums.nesdev.com/viewtopic.php?t=9088
-    n = @params.A
+    n = @Params.A
 
-    unless @params.Flags.N
-      if @params.Flags.H || (n & 0xF) > 9
+    unless @Params.Flags.N
+      if @Params.Flags.H || (n & 0xF) > 9
         n += 0x06
 
-      if @params.Flags.C || (n > 0x9F)
+      if @Params.Flags.C || (n > 0x9F)
         n += 0x60
     else
-      if @params.Flags.H
+      if @Params.Flags.H
         n = (n - 6) & 0xFF
 
-      if @params.Flags.C
+      if @Params.Flags.C
         n -= 0x60
 
     if (n & 0x100) == 0x100
-      @params.Flags.C = 1
+      @Params.Flags.C = 1
 
     n &= 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.H = 0
+    @Params.Flags.Z = n == 0
+    @Params.Flags.H = 0
 
-    @params.A = n
+    @Params.A = n
 
   CPL: ->
-    @params.Flags.N = 1
-    @params.Flags.H = 1
-    @params.A ^= 0xFF
+    @Params.Flags.N = 1
+    @Params.Flags.H = 1
+    @Params.A ^= 0xFF
 
   CCF: ->
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = !@params.Flags.C
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = !@Params.Flags.C
 
   SCF: ->
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = 1
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = 1
 
   NOP: ->
     # Nothing to see here.
@@ -366,188 +357,190 @@ class CPU
     console.log 'STOP is not implemented!'
 
   DI: ->
-    console.log 'DI is not implemented!'
+    @ime = false
 
   EI: ->
-    console.log 'EI is not implemented!'
+    @ime = true
 
   RLCA: ->
-    carry = @params.A >> 7
-    n     = ((@params.A << 1) | carry) & 0xFF
+    carry = @Params.A >> 7
+    n     = ((@Params.A << 1) | carry) & 0xFF
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params.A = n
+    @Params.A = n
 
   RLA: ->
-    carry = @params.A >> 7
-    n     = ((@params.A << 1) | @params.Flags.C) & 0xFF
+    carry = @Params.A >> 7
+    n     = ((@Params.A << 1) | @Params.Flags.C) & 0xFF
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params.A = n
+    @Params.A = n
 
   RRCA: ->
-    carry = @params.A & 0x1
-    n     = ((@params.A >> 1) | (carry << 7)) & 0xFF
+    carry = @Params.A & 0x1
+    n     = ((@Params.A >> 1) | (carry << 7)) & 0xFF
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params.A = n
+    @Params.A = n
 
   RRA: ->
-    carry = @params.A & 1
-    n     = ((@params.A >> 1) | (@params.Flags.C << 7)) & 0xFF
+    carry = @Params.A & 1
+    n     = ((@Params.A >> 1) | (@Params.Flags.C << 7)) & 0xFF
 
-    @params.Flags.Z = 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params.A = n
+    @Params.A = n
 
   JP_nn: (cond) ->
-    address = @params.UI16
-    if @params.CheckFlag(cond)
-      @params.PC = address
+    address = @Params.UI16
+    if @Params.CheckFlag(cond)
+      @Params.PC = address
 
   JP_HL: ->
-    @params.PC = @params.HL
+    @Params.PC = @Params.HL
 
   JR_n: (cond) ->
     address = @getRelInt8JmpAddress()
-    if @params.CheckFlag(cond)
-      @params.PC = address
+    if @Params.CheckFlag(cond)
+      @Params.PC = address
 
   CALL_nn: (cond) ->
-    address = @params.UI16
-    if @params.CheckFlag(cond)
+    address = @Params.UI16
+    if @Params.CheckFlag(cond)
       @PUSH_r('PC')
-      @params.PC = address
+      @Params.PC = address
 
-  RST: ->
-    console.log 'RST is not implemented!'
+  RST: (address) ->
+    @PUSH_r('PC')
+    @Params.PC = address
 
   RET: (cond) ->
-    if @params.CheckFlag(cond)
+    if @Params.CheckFlag(cond)
       @POP_r('PC')
 
   RETI: ->
-    console.log 'RETI is not implemented!'
+    @POP_r('PC')
+    @ime = true
 
   SWAP_r: (reg) ->
-    n      = @params[reg]
+    n      = @Params[reg]
     result = ((n << 4) | (n >> 4)) & 0xFF
 
-    @params.Flags.Z = result == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = 0
+    @Params.Flags.Z = result == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = 0
 
-    @params[reg] = result
+    @Params[reg] = result
 
   RLC_r: (reg) ->
-    carry = @params[reg] >> 7
-    n     = ((@params[reg] << 1) | carry) & 0xFF
+    carry = @Params[reg] >> 7
+    n     = ((@Params[reg] << 1) | carry) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   RL_r: (reg) ->
-    carry = (@params[reg] >> 7) & 0x1
-    n     = ((@params[reg] << 1) | (@params.Flags.C)) & 0xFF
+    carry = (@Params[reg] >> 7) & 0x1
+    n     = ((@Params[reg] << 1) | (@Params.Flags.C)) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   RRC_r: (reg) ->
-    carry = @params[reg] & 0x1
-    n     = ((@params[reg] >> 1) | (carry << 7)) & 0xFF
+    carry = @Params[reg] & 0x1
+    n     = ((@Params[reg] >> 1) | (carry << 7)) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   RR_r: (reg) ->
-    carry = @params[reg] & 1
-    n     = ((@params[reg] >> 1) | (@params.Flags.C << 7)) & 0xFF
+    carry = @Params[reg] & 1
+    n     = ((@Params[reg] >> 1) | (@Params.Flags.C << 7)) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   SLA_r: (reg) ->
-    n      = @params[reg] << 1
+    n      = @Params[reg] << 1
     result = n & 0xFF
 
-    @params.Flags.Z = result == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = (n & 0x100) > 0
+    @Params.Flags.Z = result == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = (n & 0x100) > 0
 
-    @params[reg] = result
+    @Params[reg] = result
 
   SRA_r: (reg) ->
-    carry = @params[reg] & 1
-    msb   = @params[reg] >> 7
-    n     = ((msb << 7) | (@params[reg] >> 1)) & 0xFF
+    carry = @Params[reg] & 1
+    msb   = @Params[reg] >> 7
+    n     = ((msb << 7) | (@Params[reg] >> 1)) & 0xFF
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   SRL_r: (reg) ->
-    carry = @params[reg] & 1
-    n     = @params[reg] >> 1
+    carry = @Params[reg] & 1
+    n     = @Params[reg] >> 1
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 0
-    @params.Flags.C = carry
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 0
+    @Params.Flags.C = carry
 
-    @params[reg] = n
+    @Params[reg] = n
 
   BIT_b_r: (bit, reg) ->
-    n = @params[reg] & (1 << bit)
+    n = @Params[reg] & (1 << bit)
 
-    @params.Flags.Z = n == 0
-    @params.Flags.N = 0
-    @params.Flags.H = 1
+    @Params.Flags.Z = n == 0
+    @Params.Flags.N = 0
+    @Params.Flags.H = 1
 
   SET_b_r: (bit, reg) ->
-    @params[reg] |= (1 << bit)
+    @Params[reg] |= (1 << bit)
 
   RES_b_r: (bit, reg) ->
-    @params[reg] &= ~(1 << bit)
+    @Params[reg] &= ~(1 << bit)
 
   executeOpcode: ->
-    opcode = @params.UI8
+    opcode = @Params.UI8
     unless opcode?
       return false
 
@@ -896,7 +889,7 @@ class CPU
 
       # Ext ops
       when 0xCB
-        opcode2 = @params.UI8
+        opcode2 = @Params.UI8
 
         switch opcode2
 
@@ -1005,6 +998,6 @@ class CPU
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
-    !@Breakpoints?[@params.PC]
+    !@Breakpoints?[@Params.PC]
 
-window.CPU = CPU
+window.Core = Core

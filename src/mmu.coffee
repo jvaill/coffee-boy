@@ -1,10 +1,22 @@
 class MMU
+  BootstrapRom: null
+  Cart:         null
+
   memory: new Array(0xFFFF)
+  isBootstrapRomDisabled: false
 
   Get: (index) ->
-    @memory[index]
+    if index < 0x100 and !@isBootstrapRomDisabled
+      @BootstrapRom[index]
+    else if index < 0x8000
+      @Cart.Get(index)
+    else
+      @memory[index]
 
   Set: (index, value) ->
+    if index == 0xFF50 and value & 1
+      @isBootstrapRomDisabled = true
+
     @memory[index] = value
 
   # Unsigned

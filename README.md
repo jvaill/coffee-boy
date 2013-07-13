@@ -12,15 +12,15 @@ With CoffeeScript installed, run ```cake build``` to see available tasks.
 Blargg's test ROMs are a good indicator of an emulator's accuracy [with most emulators failing some tests.](http://gbdev.gg8.se/wiki/articles/Test_ROMs) CoffeeBoy's CPU core already performs better than a large percentage of emulators.
 
 ```
-Passed: 01-special
-Failed: 02-interrupts
-Passed: 03-op sp,hl
-Passed: 04-op r,imm
-Passed: 05-op rp
-Passed: 06-ld r,r
-Failed: 07-jr,jp,call,ret,rst
-Passed: 08-misc instrs
-Passed: 09-op r,r
-Passed: 10-bit ops
-Passed: 11-op a,(hl)
+Pass: 01-special
+Fail: 02-interrupts
+Pass: 03-op sp,hl
+Pass: 04-op r,imm
+Pass: 05-op rp
+Pass: 06-ld r,r
+Pass: 07-jr,jp,call,ret,rst
+Pass: 08-misc instrs
+Pass: 09-op r,r
+Pass: 10-bit ops
+Pass: 11-op a,(hl)
 ```

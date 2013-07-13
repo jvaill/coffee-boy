@@ -1,7 +1,13 @@
-requestAnimationFrame = window.requestAnimationFrame or window.mozRequestAnimationFrame or
-                        window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
+requestAnimationFrame =
+  window.requestAnimationFrame or window.mozRequestAnimationFrame or
+  window.webkitRequestAnimationFrame or window.msRequestAnimationFrame
 
 isPaused = true
+
+core = new Core()
+mmu  = new MMU()
+
+core.MMU = mmu
 
 downloadBlob = (path, cb) ->
   # jQuery didn't support 'arraybuffer' as a response type.
@@ -13,7 +19,7 @@ downloadBlob = (path, cb) ->
       blob = new Uint8Array(@response)
       cb? blob
     else
-      throw "Could not download blob at '#{path}'."
+      throw "Couldn't download blob at '#{path}'."
 
   xhr.open 'GET', path, true
   xhr.send()
@@ -28,14 +34,13 @@ updateRegisters = ->
 
   html = ''
   for register in registers
-    value = cpu.params[register].toString(16)
+    value = core.Params[register].toString(16)
     html += "<li>#{register}: $#{value}</li>"
 
   $('#registers').html(html)
 
 drawVideo = ->
-  # Vblank available.
-  # Different code looks at different scanlines. Hack.
+  # Simulate vblank, different code looks at different scalines.. hack for now.
   if mmu.memory[0xFF44] == 0x91
     mmu.memory[0xFF44] = 0x90
   else
@@ -46,8 +51,6 @@ drawVideo = ->
   ctx.fillStyle = "black"
 
   drawTile = (tileIndex, x, y) ->
-    # y += mmu.memory[0xFF42]
-
     # Tiles are 16 bytes long.
     baseIndex = 0x8000 + tileIndex * 16
 
@@ -68,34 +71,23 @@ drawVideo = ->
       mapIdx = mmu.memory[0x9800 + x + y * 32]
       drawTile mapIdx, x * 8, y * 8
 
-step = ->
+run = ->
   if isPaused
     # Step one opcode at a time when paused.
-    cpu.executeOpcode()
+    core.executeOpcode()
   else
     for i in [0..50000]
-      unless cpu.executeOpcode()
+      unless core.executeOpcode()
         # Breakpoint reached.
         $('#resume').click()
         break
 
   drawVideo()
-
-  unless isPaused
-    requestAnimationFrame step
-
-window.mmu = new MMU()
-window.cpu = new CPU()
-window.cpu.MMU = window.mmu
+  requestAnimationFrame(run) unless isPaused
 
 $ ->
-  updateRegisters()
-  $('#memory').hexView(mmu.memory)
-
   $('#step').click ->
-    step()
-    $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
-    $('#memory').hexView('Refresh')
+    run()
     updateRegisters()
 
   $('#resume').click ->
@@ -104,35 +96,25 @@ $ ->
     if isPaused
       $(this).text('Resume')
       $('#step').removeAttr('disabled')
-      $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
-      $('#memory').hexView('Refresh')
       updateRegisters()
     else
       $(this).text('Pause')
       $('#step').attr('disabled', 'disabled')
-      $('#disassembly').disassemblyView('SetPC', null)
-      step()
+      run()
 
+  # Reset registers
+  updateRegisters()
+
+  # Download bootstrap ROM
   downloadBlob 'ROMs/DMG_ROM.bin', (blob) ->
-    rom = if window.location.hash == '' then 'ROMS/ROM.gb' else "ROMS/#{window.location.hash[1..]}.gb"
+    mmu.BootstrapRom = blob
+
+    rom =
+      if window.location.hash == ''
+        'ROMS/ROM.gb'
+      else
+        "ROMS/#{window.location.hash[1..]}.gb"
+
+    # Download ROM
     downloadBlob rom, (blob2) ->
-      ROM = new Uint8Array(blob2.buffer, 0x100, blob2.length - 0x100)
-
-      # Append the rom after the BIOS.
-      tmp = new Uint8Array(blob.byteLength + ROM.byteLength)
-      tmp.set(blob, 0)
-      tmp.set(ROM, blob.byteLength)
-
-      # Disassemble.
-      disassembler = new Disassembler(tmp)
-      cpu.disassembler = disassembler
-      $('#disassembly').disassemblyView(disassembler)
-      cpu.something = =>
-        $('#disassembly').disassemblyView 'DisassemblyLengthChanged'
-      $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
-        cpu.Breakpoints = breakpoints
-
-      # Scrappy emulate.
-      cpu.LoadCode tmp
-      $('#disassembly').disassemblyView('SetPC', cpu.params.PC)
-      $('#memory').hexView('Refresh')
+      mmu.Cart = new Cart(blob2)
