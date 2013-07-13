@@ -20,23 +20,23 @@ do ($ = jQuery) =>
       unless @disassembler? then throw 'A disassembler is required.'
 
       @$element = $(element).empty()
-      # Create a div to hold the current data view.
+      # Create a div to hold the current data view
       @$data     = $('<div/>').appendTo(@$element)
-      # Create a second div and overlay it to allow for scrolling.
+      # Create a second div and overlay it to allow for scrolling
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 
-      # Init.
+      # Init
       @Reset()
       @DisassemblyLengthChanged()
       @$scroller.scroll => @Refresh()
 
-      # Breakpoints.
+      # Breakpoints
       @$element.click (e) =>
-        # Get the current view's starting index.
+        # Get the current view's starting index
         lineIndex  = Math.floor(@$scroller.scrollTop() / @fontHeight)
-        # Add the clicked line's index.
+        # Add the clicked line's index
         lineIndex += Math.floor((e.offsetY - @$scroller.scrollTop()) / @fontHeight)
-        # These two operations can't be combined because we need to call Math.floor() for each.
+        # These two operations can't be combined because we need to call Math.floor() for each
 
         address = @disassembly[lineIndex].address
         @toggleBreakpoint address
@@ -61,7 +61,7 @@ do ($ = jQuery) =>
       @PC          = null
       @breakpoints = {}
 
-      # Update container sizes.
+      # Update container sizes
       @$data.css(
         width:  width
         height: height
@@ -73,7 +73,7 @@ do ($ = jQuery) =>
         top:   -height
       )
 
-      # Calculate vertical stride (# of chars per column).
+      # Calculate vertical stride (# of chars per column)
       @fontHeight = @getFontHeight()
       @yStride    = Math.floor(height / @fontHeight)
 
@@ -82,22 +82,22 @@ do ($ = jQuery) =>
       maxMemoryAddress = lastInstruction.address.toString(16)
       @addressGutterLength = maxMemoryAddress.length
 
-    # Recalculates the scrollbar's length.
+    # Recalculates the scrollbar's length
     DisassemblyLengthChanged: ->
       @disassembly = @disassembler.Disassembly()
 
       @$scroller.empty()
-      # Create a scrollbar and set its height accordingly.
+      # Create a scrollbar and set its height accordingly
       scrollHeight = @disassembly.length * @fontHeight
       @$scroller.append $("<div style='height: #{scrollHeight}px' />")
 
     getFontHeight: ->
       $measure = $("<span style='visibility: hidden' />").appendTo(@$data)
 
-      # Measure a single character.
+      # Measure a single character
       $measure.text('0')
       fontHeight = $measure.height()
-      
+
       $measure.remove()
       fontHeight
 
@@ -113,20 +113,20 @@ do ($ = jQuery) =>
         string
 
       view = []
-      # Loop thru lines.
+      # Loop thru lines
       for y in [0...@yStride]
         instruction = @disassembly[startIndex + y]
         address     = padLeft(instruction.address.toString(16), @addressGutterLength)
-        
+
         line = "<span style='color: blue'>#{address}</span> #{instruction.mnemonic}"
 
         color =
           if @PC == instruction.address and @breakpoints[instruction.address]
             'Khaki'
-          # Highlight the currently executing instruction.
+          # Highlight the currently executing instruction
           else if @PC == instruction.address
             'PowderBlue'
-          # Highlight breakpoints.
+          # Highlight breakpoints
           else if @breakpoints[instruction.address]
             'Tomato'
 
@@ -135,18 +135,18 @@ do ($ = jQuery) =>
 
         view.push line
 
-      # Render.
+      # Render
       @$data.html view.join('<br/>')
 
   $.fn.extend
     disassemblyView: (disassembly) ->
       if typeof disassembly == 'string' and $(@).data(PLUGIN_NAMESPACE)?
-        # Call a method on the original instance.
+        # Call a method on the original instance
         method = disassembly
         instance = $(@).data(PLUGIN_NAMESPACE)
         instance[method].apply instance, Array.prototype.slice.call(arguments, 1)
       else
-        # Create an instance.
+        # Create an instance
         instance = new DisassemblyView(this, disassembly)
         $(@).data(PLUGIN_NAMESPACE, instance)
 

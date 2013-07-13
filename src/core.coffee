@@ -50,7 +50,7 @@ class Params
     Object.defineProperties this, this.properties
     delete this.properties
 
-    # Create properties for register pairs.
+    # Create properties for register pairs
     for regPair in REG_PAIRS
       [regA, regB] = [regPair[0], regPair[1]]
 
@@ -104,9 +104,14 @@ class Core
       get:         -> @mmu
       set: (value) -> @mmu = @Params.MMU = value
 
-  constructor: ->
+  constructor: (mmu) ->
+    unless mmu?
+      throw 'MMU is required.'
+
     Object.defineProperties this, this.properties
     delete this.properties
+
+    @MMU = mmu
 
   getRelInt8JmpAddress: ->
     # Order matters

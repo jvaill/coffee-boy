@@ -21,12 +21,12 @@ do ($ = jQuery) =>
 
       @$element = $(element).empty()
 
-      # Create a div to hold the current data view.
+      # Create a div to hold the current data view
       @$data     = $('<div/>').appendTo(@$element)
-      # Create a second div and overlay it to allow for scrolling.
+      # Create a second div and overlay it to allow for scrolling
       @$scroller = $("<div style='position: relative; overflow: auto' />").appendTo(@$element)
 
-      # Init.
+      # Init
       @Reset()
       @BufferLengthChanged()
       @$scroller.scroll => @Refresh()
@@ -41,7 +41,7 @@ do ($ = jQuery) =>
     Reset: ->
       [width, height] = [@$element.width(), @$element.height()]
 
-      # Update container sizes.
+      # Update container sizes
       @$data.css(
         width:  width
         height: height
@@ -53,33 +53,33 @@ do ($ = jQuery) =>
         top:   -height
       )
 
-      # Calculate stride (# of chars per row, # of chars per column).
+      # Calculate stride (# of chars per row, # of chars per column)
       @fontDimensions = @getFontDimensions()
       @stride =
         x: Math.floor(width  / @fontDimensions.width)
         y: Math.floor(height / @fontDimensions.height)
 
-      # Get sizes.
+      # Get sizes
       sizes = @getSizes(@stride.x)
       @addressGutterLength = sizes.addressGutterLength
       @bytesPerLine        = sizes.bytesPerLine
 
-    # Recalculates the scrollbar's length.
+    # Recalculates the scrollbar's length
     BufferLengthChanged: ->
       @$scroller.empty()
-      # Create a scrollbar and set its height accordingly.
+      # Create a scrollbar and set its height accordingly
       scrollHeight = (Math.ceil(@buffer.length / @bytesPerLine) + 1) * @fontDimensions.height
       @$scroller.append $("<div style='height: #{scrollHeight}px' />")
 
     getFontDimensions: ->
       $measure = $("<span style='visibility: hidden' />").appendTo(@$data)
 
-      # Measure a single character.
+      # Measure a single character
       $measure.text('0')
       [fontWidth, fontHeight] = [$measure.width(), $measure.height()]
 
       # Now measure a longer string and get the average for a single
-      # character to ensure that this is a fixed width font.
+      # character to ensure that this is a fixed width font
       $measure.text(@MEASUREMENT_TEST_STRING)
       unless fontWidth == $measure.width() / @MEASUREMENT_TEST_STRING.length
         throw 'Font must be fixed width.'
@@ -87,14 +87,14 @@ do ($ = jQuery) =>
       $measure.remove()
       { width: fontWidth, height: fontHeight }
 
-    # Gets different sizes required for rendering.
+    # Gets different sizes required for rendering
     getSizes: (xStride) ->
       maxMemoryAddress = @buffer.length.toString(16)
 
       addressGutterLength = maxMemoryAddress.length
       bytesPerLine        = 1
 
-      # Calculates the number of characters per line with the given parameters.
+      # Calculates the number of characters per line with the given parameters
       calculateStride = (addressGutterLength, numBytes) ->
         stride  = addressGutterLength # Address in buffer    ('00FF')
         stride += 1                   # Separator            (' ')
@@ -102,11 +102,11 @@ do ($ = jQuery) =>
         stride += numBytes            # ASCII representation ('Poof!')
         stride
 
-      # Ensure that we can at least display one byte per line.
+      # Ensure that we can at least display one byte per line
       if calculateStride(addressGutterLength, bytesPerLine) > @stride.x
         throw 'Container must be sufficiently wide to display at least one byte.'
 
-      # Add bytes to fill the remaining space.
+      # Add bytes to fill the remaining space
       while calculateStride(addressGutterLength, bytesPerLine + 1) <= @stride.x
         bytesPerLine++
 
@@ -118,43 +118,43 @@ do ($ = jQuery) =>
         string
 
       view = []
-      # Loop thru lines.
+      # Loop thru lines
       for y in [0...@stride.y]
         lineAddress  = address + y * @bytesPerLine
 
         bytes = []
         ascii = ''
-        # Loop thru bytes.
+        # Loop thru bytes
         for x in [0...@bytesPerLine]
           if lineAddress + x > @buffer.length - 1
-            # Last line. Append non-breaking spaces to pad bytes so the ascii still aligns.
+            # Last line, append non-breaking spaces to pad bytes so the ascii still aligns
             bytes.push String.fromCharCode(0xA0) + String.fromCharCode(0xA0)
           else
             byte = @buffer[lineAddress + x] ? '??'
-            # Append the byte.
+            # Append the byte
             bytes.push padLeft(byte.toString(16), 2)
-            # Append the char if it falls within the printable ASCII range, otherwise append a dot.
+            # Append the char if it falls within the printable ASCII range, otherwise append a dot
             ascii += if byte >= 0x20 and byte <= 0x7E then String.fromCharCode(byte) else '.'
 
-        # Append the line.
+        # Append the line
         lineAddress = padLeft(lineAddress.toString(16), @addressGutterLength)
         bytes       = bytes.join(' ')
         ascii       = ascii.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
         view.push "<span style='color: blue'>#{lineAddress}</span> #{bytes} <span style='color: SlateGray'>#{ascii}</span>"
 
-      # Render.
+      # Render
       @$data.html view.join('<br/>')
 
   $.fn.extend
     hexView: (buffer) ->
       if typeof buffer == 'string' and $(@).data(PLUGIN_NAMESPACE)?
-        # Call a method on the original instance.
+        # Call a method on the original instance
         method = buffer
         instance = $(@).data(PLUGIN_NAMESPACE)
         instance[method].apply instance, Array.prototype.slice.call(arguments, 1)
       else
-        # Create an instance.
+        # Create an instance
         instance = new HexView(this, buffer)
         $(@).data(PLUGIN_NAMESPACE, instance)
 

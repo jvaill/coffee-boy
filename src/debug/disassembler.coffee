@@ -39,7 +39,7 @@ class Disassembler
     @PC = @codePaths.pop()
     return unless @PC?
 
-    # Store the PC before the instruction is fetched.
+    # Store the PC before the instruction is fetched
     PC = @PC
 
     while mnemonic = @decodeOpcode()
@@ -48,15 +48,15 @@ class Disassembler
         if mnemonic.label?
           @disassembly[PC] = mnemonic.label
 
-        # This property flags the end of a code path.
+        # This property flags the end of a code path
         if mnemonic.end
           @PC = @codePaths.pop()
           break unless @PC?
       else
-        # String, it's just the mnemonic.
+        # String, it's just the mnemonic
         @disassembly[PC] = mnemonic
 
-      # Store the PC before the next instruction is fetched.
+      # Store the PC before the next instruction is fetched
       PC = @PC
 
     @disassembly
@@ -151,7 +151,7 @@ class Disassembler
 
   # Jumps are loosely tracked to avoid disassembling data:
 
-  # Non-conditional jumps end the current code path.
+  # Non-conditional jumps end the current code path
   JP_nn: ->
     addressH = @trackCodeAtAddress(@getUint16())
     { label: "JP $#{addressH}", end: true }
@@ -160,7 +160,7 @@ class Disassembler
     addressH = @trackCodeAtAddress(@getRelInt8JmpAddress())
     { label: "JR $#{addressH}", end: true }
 
-  # Track conditional jump code paths.
+  # Track conditional jump code paths
   JP_cc_nn: (cond) ->
     addressH = @trackCodeAtAddress(@getUint16())
     "JP #{cond}, $#{addressH}"
@@ -169,7 +169,7 @@ class Disassembler
     addressH = @trackCodeAtAddress(@getRelInt8JmpAddress())
     "JR #{cond}, $#{addressH}"
 
-  # Track call code paths.
+  # Track call code paths
   CALL_nn: ->
     addressH = @trackCodeAtAddress(@getUint16())
     "CALL $#{addressH}"
@@ -178,7 +178,7 @@ class Disassembler
     addressH = @trackCodeAtAddress(@getUint16())
     "CALL #{cond}, $#{addressH}"
 
-  # Returns end the current code path.
+  # Returns end the current code path
   RET:  -> { label: 'RET',  end: true }
   RETI: -> { label: 'RETI', end: true }
 
