@@ -608,32 +608,34 @@ class Core
     @Params[reg] &= ~(1 << bit)
 
   executeOpcode: ->
-    # Interrupt?
-    if @ime and @MMU.Get(@MMU.Regs.Addresses.IE) and @MMU.Get(@MMU.Regs.Addresses.IF)
+    # Handle interrupts
+    # Staying true, it'd make more sense for the MMU to trigger interrupts on the core.
+    # It's just easier to deal with like this, at least for now.
+    if @ime and @MMU.Get(@MMU.Regs.Addresses.IE) & @MMU.Get(@MMU.Regs.Addresses.IF)
 
-      # Acknowledge and jump to its handler (in priority sequence)
+      # Acknowledge and jump to the correct handler (in priority sequence)
       @Cycles.Current = 3
       @ime = false
       @PUSH_r('PC')
 
       # Vblank
-      if @MMU.Regs.IF.Vblank
+      if @MMU.Regs.IE.Vblank and @MMU.Regs.IF.Vblank
         @MMU.Regs.IF.Vblank = false
         @Params.PC = 0x40
       # LCDC Status
-      else if @MMU.Regs.IF.LcdcStatus
+      else if @MMU.Regs.IE.LcdcStatus and @MMU.Regs.IF.LcdcStatus
         @MMU.Regs.IF.LcdcStatus = false
         @Params.PC = 0x48
       # Timer Overflow
-      else if @MMU.Regs.IF.TimerOverflow
+      else if @MMU.Regs.IE.TimerOverflow and @MMU.Regs.IF.TimerOverflow
         @MMU.Regs.IF.TimerOverflow = false
         @Params.PC = 0x50
       # Serial Transfer Complete
-      else if @MMU.Regs.IF.SerialTransfer
+      else if @MMU.Regs.IE.SerialTransfer and @MMU.Regs.IF.SerialTransfer
         @MMU.Regs.IF.SerialTransfer = false
         @Params.PC = 0x58
       # Hi-Lo of P10-P13
-      else if @MMU.Regs.IF.HiLoPin
+      else if @MMU.Regs.IE.HiLoPin and @MMU.Regs.IF.HiLoPin
         @MMU.Regs.IF.HiLoPin = false
         @Params.PC = 0x60
 
