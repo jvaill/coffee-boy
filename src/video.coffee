@@ -43,8 +43,8 @@ class Video
           @line++
 
           if @line == 143
-            # Enter vvlank
-            #@MMU.Set(0xFF0F, 1)
+            # Enter vblank
+            @MMU.Regs.IF.Vblank = true
             @Mode = 1
             @render()
           else
