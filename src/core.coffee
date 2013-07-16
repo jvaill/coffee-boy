@@ -134,7 +134,7 @@ class Core
 
   Breakpoints: null
   Params:      new Params()
-  cycles:      0
+  Cycles:      { Current: 0, Total: 0 }
   mmu:         null
   ime:         false
 
@@ -456,7 +456,7 @@ class Core
   JP_cc_nn: (cond) ->
     address = @Params.UI16
     if @Params.CheckFlag(cond)
-      @cycles += 1
+      @Cycles.Current += 1
       @Params.PC = address
 
   JP_cc_nn: (cond) ->
@@ -474,7 +474,7 @@ class Core
   JR_cc_n: (cond) ->
     address = @getRelInt8JmpAddress()
     if @Params.CheckFlag(cond)
-      @cycles += 1
+      @Cycles.Current += 1
       @Params.PC = address
 
   CALL_nn: ->
@@ -485,7 +485,7 @@ class Core
   CALL_cc_nn: (cond) ->
     address = @Params.UI16
     if @Params.CheckFlag(cond)
-      @cycles += 3
+      @Cycles.Current += 3
       @PUSH_r('PC')
       @Params.PC = address
 
@@ -498,7 +498,7 @@ class Core
 
   RET_cc: (cond) ->
     if @Params.CheckFlag(cond)
-      @cycles += 3
+      @Cycles.Current += 3
       @POP_r('PC')
 
   RETI: ->
@@ -608,9 +608,19 @@ class Core
     @Params[reg] &= ~(1 << bit)
 
   executeOpcode: ->
+    if @ime && @MMU.Get(0xFFFF) && @MMU.Get(0xFF0F)
+      ifired = @MMU.Get(0xFFFF) & @MMU.Get(0xFF0F)
+      if ifired & 0x1
+        @MMU.Set(0xFF0F, 0)
+        @ime = false
+        @PUSH_r('PC')
+        @Params.PC = 0x40
+        @Cycles.Current = 3
+        return true
+
     opcode = @Params.UI8
     return false unless opcode?
-    @cycles += Core.OPCODE_CYCLES[opcode]
+    @Cycles.Current = Core.OPCODE_CYCLES[opcode]
 
     switch opcode
 
@@ -958,7 +968,7 @@ class Core
       # Ext ops
       when 0xCB
         opcode2 = @Params.UI8
-        @cycles += Core.EXT_OPCODE_CYCLES[opcode2]
+        @Cycles.Current += Core.EXT_OPCODE_CYCLES[opcode2]
 
         switch opcode2
 
@@ -1067,6 +1077,7 @@ class Core
       else
         throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
+    @Cycles.Total += @Cycles.Current
     !@Breakpoints?[@Params.PC]
 
 window.Core = Core

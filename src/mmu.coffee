@@ -1,6 +1,7 @@
 class MMU
   BootstrapRom: null
   Cart:         null
+  Video:        null
 
   memory: new Array(0xFFFF)
   isBootstrapRomDisabled: false
@@ -10,6 +11,8 @@ class MMU
       @BootstrapRom[index]
     else if index < 0x8000
       @Cart.Get(index)
+    else if index == 0xFF44
+      @Video.line
     else
       @memory[index]
 

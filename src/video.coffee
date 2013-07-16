@@ -2,20 +2,70 @@ class Video
   MMU:       null
   CanvasCtx: null
 
+  Mode:      0
+  modeClock: 0
+  line:      0
+
   constructor: (@MMU, @CanvasCtx) ->
     unless @MMU?
       throw 'MMU is required.'
     unless @CanvasCtx?
       throw 'CanvasCtx is required.'
 
-  Render: ->
-    @MMU.Set(0xFF0F, 1)
-    # @MMU.memory[0xFF44] = (@MMU.memory[0xFF44] + 1) & 0xFF
-    # HACK: Simulate VBLANK.. different code looks for different scanlines
-    # if @MMU.memory[0xFF44] == 0x91
-    #   @MMU.memory[0xFF44] = 0x90
-    # else
-    #   @MMU.memory[0xFF44] = 0x91
+  Step: (cycles) ->
+    @modeClock += cycles
+
+    switch @Mode
+      # OAM read mode, scanline active
+      when 2
+        if @modeClock >= 80
+          # Enter scanline mode 3
+          @modeClock = 0
+          @Mode = 3
+        break
+
+      # VRAM read mode, scanline active
+      # Treat end of mode 3 as end of scanline
+      when 3
+        if @modeClock >= 172
+          # Enter hblank
+          @modeClock = 0
+          @Mode = 0
+
+          # RenderScanline()
+        break
+
+      # Hblank
+      # After the last hblank, render the screen
+      when 0
+        if @modeClock >= 204
+          @modeClock = 0
+          @line++
+
+          if @line == 143
+            # Enter vvlank
+            @MMU.Set(0xFF0F, 1)
+            @Mode = 1
+            @render()
+          else
+            @Mode = 2
+        break
+
+      # Vblank (10 lines)
+      when 1
+        if @modeClock >= 456
+          @modeClock = 0
+          @line++
+
+          if @line > 153
+            # Restart scanning modes
+            @Mode = 2
+            @line = 0
+        break
+
+
+  render: ->
+    console.log 'render'
 
     @CanvasCtx.clearRect(0, 0, 300, 300)
     @CanvasCtx.fillStyle = "black"

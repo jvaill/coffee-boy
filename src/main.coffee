@@ -44,13 +44,15 @@ run = ->
     # Step one opcode at a time when paused
     core.executeOpcode()
   else
-    for i in [0..500000]
-      unless core.executeOpcode()
+    for i in [0..50000]
+      shouldBreak = !core.executeOpcode()
+      video.Step(core.Cycles.Current)
+
+      if shouldBreak
         # Breakpoint reached
         $('#resume').click()
         break
 
-  video.Render()
   requestAnimationFrame(run) unless isPaused
 
 $ ->
@@ -74,6 +76,7 @@ $ ->
   mmu   = new MMU()
   window.core  = core = new Core(mmu)
   video = new Video(mmu, ctx)
+  mmu.Video = video
 
   # Reset registers
   updateRegisters()
