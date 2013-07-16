@@ -44,7 +44,7 @@ run = ->
     # Step one opcode at a time when paused
     core.executeOpcode()
   else
-    for i in [0..50000]
+    for i in [0..500000]
       unless core.executeOpcode()
         # Breakpoint reached
         $('#resume').click()
@@ -72,7 +72,7 @@ $ ->
 
   ctx = $('#canvas').get(0).getContext('2d')
   mmu   = new MMU()
-  core  = new Core(mmu)
+  window.core  = core = new Core(mmu)
   video = new Video(mmu, ctx)
 
   # Reset registers

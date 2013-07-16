@@ -110,6 +110,7 @@ class Disassembler
   #   - 'n' represents a byte
   #   - 'rr' represents a pair of registers
   #   - 'nn' represents a 16 bit integer
+  #   - 'cc' represents a condition
   #   - Uppercase characters denote a pointer
   #
   LD_r_n:     (reg)       -> "LD #{reg}, $#{@getUint8H()}"

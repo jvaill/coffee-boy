@@ -90,12 +90,51 @@ class Params
       when 'C'  then @Flags.C
       when 'NZ' then !@Flags.Z
       when 'NC' then !@Flags.C
-      else true
+      else false
 
 # The almighty core!
 class Core
+  @OPCODE_CYCLES: [
+    1, 3, 2, 2, 1, 1, 2, 1, 5, 2, 2, 2, 1, 1, 2, 1
+    1, 3, 2, 2, 1, 1, 2, 1, 3, 2, 2, 2, 1, 1, 2, 1
+    2, 3, 2, 2, 1, 1, 2, 1, 2, 2, 2, 2, 1, 1, 2, 1
+    2, 3, 2, 2, 3, 3, 3, 1, 2, 2, 2, 2, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1
+    2, 3, 3, 4, 3, 4, 2, 4, 2, 4, 3, 0, 3, 6, 2, 4
+    2, 3, 3, 0, 3, 4, 2, 4, 2, 4, 3, 0, 3, 0, 2, 4
+    3, 3, 2, 0, 0, 4, 2, 4, 4, 1, 4, 0, 0, 0, 2, 4
+    3, 3, 2, 1, 0, 4, 2, 4, 3, 2, 4, 1, 0, 0, 2, 4
+  ]
+
+  @EXT_OPCODE_CYCLES: [
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2
+    2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 3, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+    2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 4, 2
+  ]
+
   Breakpoints: null
   Params:      new Params()
+  cycles:      0
   mmu:         null
   ime:         false
 
@@ -411,7 +450,16 @@ class Core
 
     @Params.A = n
 
-  JP_nn: (cond) ->
+  JP_nn: ->
+    @Params.PC = @Params.UI16
+
+  JP_cc_nn: (cond) ->
+    address = @Params.UI16
+    if @Params.CheckFlag(cond)
+      @cycles += 1
+      @Params.PC = address
+
+  JP_cc_nn: (cond) ->
     address = @Params.UI16
     if @Params.CheckFlag(cond)
       @Params.PC = address
@@ -419,14 +467,25 @@ class Core
   JP_HL: ->
     @Params.PC = @Params.HL
 
-  JR_n: (cond) ->
+  JR_n: ->
+    address = @getRelInt8JmpAddress()
+    @Params.PC = address
+
+  JR_cc_n: (cond) ->
     address = @getRelInt8JmpAddress()
     if @Params.CheckFlag(cond)
+      @cycles += 1
       @Params.PC = address
 
-  CALL_nn: (cond) ->
+  CALL_nn: ->
+    address = @Params.UI16
+    @PUSH_r('PC')
+    @Params.PC = address
+
+  CALL_cc_nn: (cond) ->
     address = @Params.UI16
     if @Params.CheckFlag(cond)
+      @cycles += 3
       @PUSH_r('PC')
       @Params.PC = address
 
@@ -434,8 +493,12 @@ class Core
     @PUSH_r('PC')
     @Params.PC = address
 
-  RET: (cond) ->
+  RET: ->
+    @POP_r('PC')
+
+  RET_cc: (cond) ->
     if @Params.CheckFlag(cond)
+      @cycles += 3
       @POP_r('PC')
 
   RETI: ->
@@ -546,8 +609,8 @@ class Core
 
   executeOpcode: ->
     opcode = @Params.UI8
-    unless opcode?
-      return false
+    return false unless opcode?
+    @cycles += Core.OPCODE_CYCLES[opcode]
 
     switch opcode
 
@@ -845,10 +908,10 @@ class Core
       when 0xC3 then @JP_nn()
 
       # JP cc, nn
-      when 0xC2 then @JP_nn('NZ')
-      when 0xCA then @JP_nn('Z')
-      when 0xD2 then @JP_nn('NC')
-      when 0xDA then @JP_nn('C')
+      when 0xC2 then @JP_cc_nn('NZ')
+      when 0xCA then @JP_cc_nn('Z')
+      when 0xD2 then @JP_cc_nn('NC')
+      when 0xDA then @JP_cc_nn('C')
 
       # JP (HL)
       when 0xE9 then @JP_HL()
@@ -856,19 +919,19 @@ class Core
       when 0x18 then @JR_n()
 
       # JR cc, n
-      when 0x20 then @JR_n('NZ')
-      when 0x28 then @JR_n('Z')
-      when 0x30 then @JR_n('NC')
-      when 0x38 then @JR_n('C')
+      when 0x20 then @JR_cc_n('NZ')
+      when 0x28 then @JR_cc_n('Z')
+      when 0x30 then @JR_cc_n('NC')
+      when 0x38 then @JR_cc_n('C')
 
       # CALL nn
       when 0xCD then @CALL_nn()
 
       # CALL cc, nn
-      when 0xC4 then @CALL_nn('NZ')
-      when 0xCC then @CALL_nn('Z')
-      when 0xD4 then @CALL_nn('NC')
-      when 0xDC then @CALL_nn('C')
+      when 0xC4 then @CALL_cc_nn('NZ')
+      when 0xCC then @CALL_cc_nn('Z')
+      when 0xD4 then @CALL_cc_nn('NC')
+      when 0xDC then @CALL_cc_nn('C')
 
       # RST n
       when 0xC7 then @RST(0x00)
@@ -884,10 +947,10 @@ class Core
       when 0xC9 then @RET()
 
       # RET cc
-      when 0xC0 then @RET('NZ')
-      when 0xC8 then @RET('Z')
-      when 0xD0 then @RET('NC')
-      when 0xD8 then @RET('C')
+      when 0xC0 then @RET_cc('NZ')
+      when 0xC8 then @RET_cc('Z')
+      when 0xD0 then @RET_cc('NC')
+      when 0xD8 then @RET_cc('C')
 
       # RETI
       when 0xD9 then @RETI()
@@ -895,6 +958,7 @@ class Core
       # Ext ops
       when 0xCB
         opcode2 = @Params.UI8
+        @cycles += Core.EXT_OPCODE_CYCLES[opcode2]
 
         switch opcode2
 

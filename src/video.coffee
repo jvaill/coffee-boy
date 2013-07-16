@@ -9,11 +9,13 @@ class Video
       throw 'CanvasCtx is required.'
 
   Render: ->
+    @MMU.Set(0xFF0F, 1)
+    # @MMU.memory[0xFF44] = (@MMU.memory[0xFF44] + 1) & 0xFF
     # HACK: Simulate VBLANK.. different code looks for different scanlines
-    if @MMU.memory[0xFF44] == 0x91
-      @MMU.memory[0xFF44] = 0x90
-    else
-      @MMU.memory[0xFF44] = 0x91
+    # if @MMU.memory[0xFF44] == 0x91
+    #   @MMU.memory[0xFF44] = 0x90
+    # else
+    #   @MMU.memory[0xFF44] = 0x91
 
     @CanvasCtx.clearRect(0, 0, 300, 300)
     @CanvasCtx.fillStyle = "black"
