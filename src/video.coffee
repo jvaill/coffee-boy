@@ -44,7 +44,7 @@ class Video
 
           if @line == 143
             # Enter vvlank
-            @MMU.Set(0xFF0F, 1)
+            #@MMU.Set(0xFF0F, 1)
             @Mode = 1
             @render()
           else

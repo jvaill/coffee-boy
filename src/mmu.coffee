@@ -4,23 +4,87 @@ class MMU
   Video:        null
 
   memory: new Array(0xFFFF)
-  isBootstrapRomDisabled: false
+
+  Regs:
+    Addresses:
+      BootstrapRomFlag: 0xFF50
+      IF:               0xFF0F
+      LY:               0xFF44
+      IE:               0xFFFF
+
+    isBootstrapRomDisabled: false
+
+    IF:
+      Vblank:           false
+      LcdcStatus:       false
+      TimerOverflow:    false
+      SerialTransfer:   false
+      HiLoPin:          false
+
+    IE:
+      Vblank:           false
+      LcdcStatus:       false
+      TimerOverflow:    false
+      SerialTransfer:   false
+      HiLoPin:          false
 
   Get: (index) ->
-    if index < 0x100 and !@isBootstrapRomDisabled
+    # Bootstrap ROM
+    if index < 0x100 and !@Regs.isBootstrapRomDisabled
       @BootstrapRom[index]
+
+    # Cart
     else if index < 0x8000
       @Cart.Get(index)
-    else if index == 0xFF44
+
+    # Interrupt Flag
+    else if index == @Regs.Addresses.IF
+      @Regs.IF.Vblank                  |
+        (@Regs.IF.LcdcStatus     << 1) |
+        (@Regs.IF.TimerOverflow  << 2) |
+        (@Regs.IF.SerialTransfer << 3) |
+        (@Regs.IF.HiLoPin        << 4)
+
+    # LCDC - Y Coordinate
+    else if index == @Regs.Addresses.LY
       @Video.line
+
+    # Interrupt Enable
+    else if index == @Regs.Addresses.IE
+      @Regs.IE.Vblank                  |
+        (@Regs.IE.LcdcStatus     << 1) |
+        (@Regs.IE.TimerOverflow  << 2) |
+        (@Regs.IE.SerialTransfer << 3) |
+        (@Regs.IE.HiLoPin        << 4)
+
+    # RAM
     else
       @memory[index]
 
   Set: (index, value) ->
-    if index == 0xFF50 and value & 1
-      @isBootstrapRomDisabled = true
+    # Bootstrap ROM
+    if index == @Regs.Addresses.BootstrapRomFlag
+      @Regs.isBootstrapRomDisabled = true if value & 1
 
-    @memory[index] = value
+    # Interrupt Flag
+    else if index == @Regs.Addresses.IF
+      @Regs.IF.Vblank         = value & 1
+      @Regs.IF.LcdcStatus     = (value >> 1) & 1
+      @Regs.IF.TimerOverflow  = (value >> 2) & 1
+      @Regs.IF.SerialTransfer = (value >> 3) & 1
+      @Regs.IF.HiLoPin        = (value >> 4) & 1
+
+    # Interrupt Enable
+    else if index == @Regs.Addresses.IE
+      @Regs.IE.Vblank         = value & 1
+      @Regs.IE.LcdcStatus     = (value >> 1) & 1
+      @Regs.IE.TimerOverflow  = (value >> 2) & 1
+      @Regs.IE.SerialTransfer = (value >> 3) & 1
+      @Regs.IE.HiLoPin        = (value >> 4) & 1
+
+    # RAM
+    else
+      @memory[index] = value
 
   # Unsigned
 
