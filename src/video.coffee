@@ -6,6 +6,13 @@ class Video
   modeClock: 0
   line:      0
 
+  BgPal: [
+    'rgb(0,0,0)'
+    'rgb(0,0,0)'
+    'rgb(0,0,0)'
+    'rgb(0,0,0)'
+  ]
+
   constructor: (@MMU, @CanvasCtx) ->
     unless @MMU?
       throw 'MMU is required.'
@@ -86,9 +93,13 @@ class Video
       tiles2 = @MMU.memory[rowIndex + 1]
 
       for i in [0...8]
-        # Mono color for now, beurk
-        if tiles >> (7 - i) & 1 == 1 or tiles2 >> (7 - i) & 1 == 1
-          @CanvasCtx.fillRect(x + i, y + y2, 1, 1)
+        nib = ((tiles >> (7 - i) & 1) << 1) | (tiles2 >> (7 - i) & 1)
+        if @BgPal?
+          @CanvasCtx.fillStyle = @BgPal[nib]
+        else
+          @CanvasCtx.fillStyle = 'black'
+        
+        @CanvasCtx.fillRect(x + i, y + y2, 1, 1)
 
   drawBackground: ->
     # 32x32 tiles per background

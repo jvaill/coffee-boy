@@ -10,6 +10,7 @@ class MMU
       BootstrapRomFlag: 0xFF50
       IF:               0xFF0F
       LY:               0xFF44
+      BGP:              0xFF47
       IE:               0xFFFF
 
     isBootstrapRomDisabled: false
@@ -74,6 +75,22 @@ class MMU
       @Regs.IF.SerialTransfer = (value >> 3) & 1
       @Regs.IF.HiLoPin        = (value >> 4) & 1
 
+    # BG & Window Palette Data
+    else if index == @Regs.Addresses.BGP
+      getColour = (data) ->
+        switch data
+          when 0 then 'rgb(255, 255, 255)'
+          when 1 then 'rgb(192, 192, 192)'
+          when 2 then 'rgb(96, 96, 96)'
+          when 3 then 'rgb(0, 0, 0)'
+
+      @Video.BgPal = [
+        getColour(value & 0x3)
+        getColour((value >> 2) & 0x3)
+        getColour((value >> 4) & 0x3)
+        getColour((value >> 6) & 0x3)
+      ]
+
     # Interrupt Enable
     else if index == @Regs.Addresses.IE
       @Regs.IE.Vblank         = value & 1
@@ -81,6 +98,10 @@ class MMU
       @Regs.IE.TimerOverflow  = (value >> 2) & 1
       @Regs.IE.SerialTransfer = (value >> 3) & 1
       @Regs.IE.HiLoPin        = (value >> 4) & 1
+
+    # HACK: Fake pad input until implemented
+    else if index == 0xFF00
+      @memory[index] = 0xFF
 
     # RAM
     else
