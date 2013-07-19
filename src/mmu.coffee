@@ -3,7 +3,7 @@ class MMU
   Cart:         null
   Video:        null
 
-  memory: new Array(0xFFFF)
+  memory: new Uint8Array(0xFFFF)
 
   Regs:
     Addresses:
@@ -79,10 +79,10 @@ class MMU
     else if index == @Regs.Addresses.BGP
       getColour = (data) ->
         switch data
-          when 0 then 'rgb(255, 255, 255)'
-          when 1 then 'rgb(192, 192, 192)'
-          when 2 then 'rgb(96, 96, 96)'
-          when 3 then 'rgb(0, 0, 0)'
+          when 0 then [255, 255, 255]
+          when 1 then [192, 192, 192]
+          when 2 then [96, 96, 96]
+          when 3 then [0, 0, 0]
 
       @Video.BgPal = [
         getColour(value & 0x3)
@@ -102,6 +102,14 @@ class MMU
     # HACK: Fake pad input until implemented
     else if index == 0xFF00
       @memory[index] = 0xFF
+
+    # LCDC
+    else if index == 0xFF40
+      @Video.Set index, value
+
+    # Video RAM
+    else if index >= 0x8000 and index <= 0xA000
+      @Video.Set index, value
 
     # RAM
     else

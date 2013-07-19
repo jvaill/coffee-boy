@@ -7,17 +7,26 @@ class Video
   line:      0
 
   BgPal: [
-    'rgb(0,0,0)'
-    'rgb(0,0,0)'
-    'rgb(0,0,0)'
-    'rgb(0,0,0)'
+    [0,0,0]
+    [0,0,0]
+    [0,0,0]
+    [0,0,0]
   ]
+
+  LCDC: 0
+  Memory: new Uint8Array(0x2000)
+  isBgDirty: false
 
   constructor: (@MMU, @CanvasCtx) ->
     unless @MMU?
       throw 'MMU is required.'
     unless @CanvasCtx?
       throw 'CanvasCtx is required.'
+
+    @imageData = @CanvasCtx.createImageData(256, 256)
+    buf = new ArrayBuffer(@imageData.data.length);
+    @buf8 = new Uint8ClampedArray(buf);
+    @data = new Uint32Array(buf);
 
   Step: (cycles) ->
     @modeClock += cycles
@@ -70,13 +79,65 @@ class Video
             @line = 0
         break
 
+  Set: (index, value) ->
+      if index >= 0x8000 and index <= 0xA000
+        indexIntoVram = index - 0x8000
+        @Memory[indexIntoVram] = value
+
+        # Figure out what we've dirtied
+        unless @isBgDirty
+
+          if index >= 0x9800 and index <= 0x9BFF
+            # Within BG tile map?
+            unless @LCDC & 0x8
+              @isBgDirty = true
+
+          else if index >= 0x9C00 and index <= 0x9FFF
+            # Within BG tile map?
+            if @LCDC & 0x8
+              @isBgDirty = true
+
+          if index >= 0x8800 and index <= 0x97FF
+            # Within BG tile data?
+            unless @LCDC & 0x10
+              @isBgDirty = true
+
+          else if index >= 0x8000 and index <= 0x8FFF
+            # Within BG tile data?
+            if @LCDC & 0x10
+              @isBgDirty = true
+
+
+      else if index == 0xFF40
+        # Bg & Window Display flipped on?
+        if !(@LCDC & 0x1) and value & 0x1
+          @isBgDirty = true
+
+        # BG Tile Map Display Select changed?
+        if @LCDC & 0x8 != value & 0x8
+          @isBgDirty = true
+
+        # BG & Window Tile Data Select changed?
+        if @LCDC & 0x10 != value & 0x10
+          @isBgDirty = true
+
+        # LCD Control Operation flipped on?
+        if !(@LCDC & 0x80) and value & 0x80
+          @isBgDirty = true
+
+        @LCDC = value
+
+  Get: (index) ->
+    if index >= 0x8000 and index <= 0xA000
+      indexIntoVram = index - 0x8000
+      @Memory[indexIntoVram]
+
+    else if index == 0xFF40
+      @LCDC
 
   render: ->
     console.log 'render'
-
-    @CanvasCtx.clearRect(0, 0, 300, 300)
-    @CanvasCtx.fillStyle = "black"
-
+    @clear()
     @drawBackground()
 
   clear: ->
@@ -84,28 +145,31 @@ class Video
 
   drawTile: (tileIndex, x, y) ->
     # Tiles are 16 bytes long
-    baseIndex = 0x8000 + tileIndex * 16
+    baseIndex = tileIndex * 16
 
     # 8 rows
     for y2 in [0...8]
       rowIndex = baseIndex + y2 * 2
-      tiles  = @MMU.memory[rowIndex]
-      tiles2 = @MMU.memory[rowIndex + 1]
+      tiles  = @Memory[rowIndex]
+      tiles2 = @Memory[rowIndex + 1]
 
       for i in [0...8]
         nib = ((tiles >> (7 - i) & 1) << 1) | (tiles2 >> (7 - i) & 1)
-        if @BgPal?
-          @CanvasCtx.fillStyle = @BgPal[nib]
-        else
-          @CanvasCtx.fillStyle = 'black'
-        
-        @CanvasCtx.fillRect(x + i, y + y2, 1, 1)
+        colour = @BgPal[nib]
+        @data[(y + y2) * 256 + (x + i)] =  (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
+
+    @imageData.data.set(@buf8)
 
   drawBackground: ->
-    # 32x32 tiles per background
-    for x in [0...32]
-      for y in [0...32]
-        mapIdx = @MMU.memory[0x9800 + x + y * 32]
-        @drawTile mapIdx, x * 8, y * 8
+    if @isBgDirty
+      # 32x32 tiles per background
+      for x in [0...32]
+        for y in [0...32]
+          mapIdx = @Memory[0x1800 + x + y * 32]
+          @drawTile mapIdx, x * 8, y * 8
+
+      @isBgDirty = false
+
+    @CanvasCtx.putImageData(@imageData, 0, 0)
 
 window.Video = Video

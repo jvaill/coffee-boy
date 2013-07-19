@@ -45,7 +45,7 @@ run = ->
     core.executeOpcode()
     video.Step(core.Cycles.Current)
   else
-    for i in [0..500000]
+    for i in [0..50000]
       shouldBreak = !core.executeOpcode()
       video.Step(core.Cycles.Current)
 

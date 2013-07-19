@@ -652,7 +652,7 @@ class Disassembler
             mnemonic
 
       else
-       throw "Unknown opcode: 0x#{opcode.toString(16)}"
+       # throw "Unknown opcode: 0x#{opcode.toString(16)}"
 
 
 window.Disassembler = Disassembler
