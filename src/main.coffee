@@ -78,6 +78,8 @@ $ ->
   mmu   = new MMU()
   window.core  = core = new Core(mmu)
   video = new Video(mmu, ctx)
+  input = new Input()
+  mmu.Input = input
   mmu.Video = video
 
   # Reset registers

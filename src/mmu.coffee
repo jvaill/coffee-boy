@@ -2,6 +2,7 @@ class MMU
   BootstrapRom: null
   Cart:         null
   Video:        null
+  Input:        null
 
   memory: new Uint8Array(0xFFFF)
 
@@ -58,6 +59,10 @@ class MMU
         (@Regs.IE.SerialTransfer << 3) |
         (@Regs.IE.HiLoPin        << 4)
 
+    # P1
+    else if index == 0xFF00
+      @Input.Get(index)
+
     # RAM
     else
       @memory[index]
@@ -99,9 +104,9 @@ class MMU
       @Regs.IE.SerialTransfer = (value >> 3) & 1
       @Regs.IE.HiLoPin        = (value >> 4) & 1
 
-    # HACK: Fake pad input until implemented
+    # P1
     else if index == 0xFF00
-      @memory[index] = 0xFF
+      @Input.Set(index, value)
 
     # LCDC
     else if index == 0xFF40
