@@ -139,6 +139,7 @@ class Video
     console.log 'render'
     @clear()
     @drawBackground()
+    @drawSprites()
 
   clear: ->
     @CanvasCtx.clearRect(0, 0, 300, 300)
@@ -160,6 +161,29 @@ class Video
 
     @imageData.data.set(@buf8)
 
+  drawSprite: (tileIndex, x, y) ->
+    image = @CanvasCtx.createImageData(8, 8)
+    buf = new ArrayBuffer(image.data.length);
+    buf8 = new Uint8ClampedArray(buf);
+    data = new Uint32Array(buf);
+
+    # Tiles are 16 bytes long
+    baseIndex = tileIndex * 16
+
+    # 8 rows
+    for y2 in [0...8]
+      rowIndex = baseIndex + y2 * 2
+      tiles  = @Memory[rowIndex]
+      tiles2 = @Memory[rowIndex + 1]
+
+      for i in [0...8]
+        nib = ((tiles >> (7 - i) & 1) << 1) | (tiles2 >> (7 - i) & 1)
+        colour = @BgPal[nib]
+        data[(y2) * 8 + (i)] =  (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
+
+    image.data.set(buf8)
+    @CanvasCtx.putImageData(image, x, y)
+
   drawBackground: ->
     if @isBgDirty
       # 32x32 tiles per background
@@ -169,7 +193,17 @@ class Video
           @drawTile mapIdx, x * 8, y * 8
 
       @isBgDirty = false
-
     @CanvasCtx.putImageData(@imageData, 0, 0)
+
+  drawSprites: ->
+    # 40 sprites
+    for x in [0...40]
+      baseIndex = 0xFE00 + (4 * x)
+      ypos = @MMU.Get(baseIndex) - 16
+      xpos = @MMU.Get(baseIndex + 1) - 8
+      pattern = @MMU.Get(baseIndex + 2)
+
+      if xpos > 0 or ypos > 0
+        @drawSprite(pattern, xpos, ypos)
 
 window.Video = Video

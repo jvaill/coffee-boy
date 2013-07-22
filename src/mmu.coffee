@@ -51,6 +51,10 @@ class MMU
     else if index == @Regs.Addresses.LY
       @Video.line
 
+    # LCDC
+    else if index == 0xFF40
+      @Video.Get index
+
     # Interrupt Enable
     else if index == @Regs.Addresses.IE
       @Regs.IE.Vblank                  |
@@ -68,6 +72,12 @@ class MMU
       @memory[index]
 
   Set: (index, value) ->
+    # DMA
+    if index == 0xFF46
+      address = value * 0x100
+      for i in [0...0xA0]
+        @Set 0xFE00 + i, @Get(address + i)
+
     # Bootstrap ROM
     if index == @Regs.Addresses.BootstrapRomFlag
       @Regs.isBootstrapRomDisabled = true if value & 1
