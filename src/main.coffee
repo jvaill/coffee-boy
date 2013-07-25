@@ -43,10 +43,12 @@ run = ->
   if isPaused
     # Step one opcode at a time when paused
     core.executeOpcode()
+    timer.step(core.Cycles.Current)
     video.Step(core.Cycles.Current)
   else
     for i in [0..50000]
       shouldBreak = !core.executeOpcode()
+      timer.step(core.Cycles.Current)
       video.Step(core.Cycles.Current)
 
       if shouldBreak
@@ -79,6 +81,7 @@ $ ->
   window.core  = core = new Core(mmu)
   video = new Video(mmu, ctx)
   input = new Input()
+  window.timer = new Timer(mmu)
   mmu.Input = input
   mmu.Video = video
 
@@ -98,10 +101,10 @@ $ ->
     # Download ROM
     downloadBlob rom, (blob2) ->
       disasembler = new Disassembler(blob2)
-      $('#disassembly').disassemblyView(disasembler)
+      #$('#disassembly').disassemblyView(disasembler)
 
-      $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
-        window.core.Breakpoints = breakpoints
+      #$('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
+      #  window.core.Breakpoints = breakpoints
 
 
       mmu.Cart = new Cart(mmu, blob2)

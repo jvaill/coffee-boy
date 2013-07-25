@@ -3,6 +3,7 @@ class MMU
   Cart:         null
   Video:        null
   Input:        null
+  Timer:        null
 
   memory: new Uint8Array(0xFFFF)
 
