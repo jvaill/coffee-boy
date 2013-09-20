@@ -459,11 +459,6 @@ class Core
       @Cycles.Current += 1
       @Params.PC = address
 
-  JP_cc_nn: (cond) ->
-    address = @Params.UI16
-    if @Params.CheckFlag(cond)
-      @Params.PC = address
-
   JP_HL: ->
     @Params.PC = @Params.HL
 

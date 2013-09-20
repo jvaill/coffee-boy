@@ -7,24 +7,18 @@ class Timer
   mainClock: 0
   divClock: 0
 
-  totalClocks: 0
-
   constructor: (@MMU) ->
     unless @MMU?
       throw 'MMU is required.'
 
   step: (clocks) ->
-    if window.boom
-      @totalClocks += clocks
-
     # Increment by the last opcode's time
     @remainingCycles += clocks
 
     # The main clock increments at 1/4th the rate of the core's clock.
 
-    # No opcode takes longer than 4 cycles,
-    # so we only have to check once
-    if @remainingCycles >= 4
+    # Some opcodes can take longer than 4 cycles
+    while @remainingCycles >= 4
       @remainingCycles -= 4
       @mainClock++
 
@@ -34,7 +28,7 @@ class Timer
         @divClock = 0
         @MMU.Set 0xFF04, ((@MMU.Get(0xFF04) + 1) & 0xFF)
 
-    @check()
+      @check()
 
   check: ->
     tac = @MMU.Get(0xFF07)
