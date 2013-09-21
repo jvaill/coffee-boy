@@ -83,6 +83,10 @@ class MMU
     if index == @Regs.Addresses.BootstrapRomFlag
       @Regs.isBootstrapRomDisabled = true if value & 1
 
+    # Cart
+    else if index < 0x8000
+      @Cart.Set index, value
+
     # Interrupt Flag
     else if index == @Regs.Addresses.IF
       @Regs.IF.Vblank         = value & 1

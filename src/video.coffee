@@ -80,52 +80,54 @@ class Video
         break
 
   Set: (index, value) ->
-      if index >= 0x8000 and index <= 0xA000
-        indexIntoVram = index - 0x8000
-        @Memory[indexIntoVram] = value
+    if window.gpuecho?
+      console.log "Set at #{index}"
+    if index >= 0x8000 and index <= 0xA000
+      indexIntoVram = index - 0x8000
+      @Memory[indexIntoVram] = value
 
-        # Figure out what we've dirtied
-        unless @isBgDirty
+      # Figure out what we've dirtied
+      unless @isBgDirty
 
-          if index >= 0x9800 and index <= 0x9BFF
-            # Within BG tile map?
-            unless @LCDC & 0x8
-              @isBgDirty = true
+        if index >= 0x9800 and index <= 0x9BFF
+          # Within BG tile map?
+          unless @LCDC & 0x8
+            @isBgDirty = true
 
-          else if index >= 0x9C00 and index <= 0x9FFF
-            # Within BG tile map?
-            if @LCDC & 0x8
-              @isBgDirty = true
+        else if index >= 0x9C00 and index <= 0x9FFF
+          # Within BG tile map?
+          if @LCDC & 0x8
+            @isBgDirty = true
 
-          if index >= 0x8800 and index <= 0x97FF
-            # Within BG tile data?
-            unless @LCDC & 0x10
-              @isBgDirty = true
+        if index >= 0x8800 and index <= 0x97FF
+          # Within BG tile data?
+          unless @LCDC & 0x10
+            @isBgDirty = true
 
-          else if index >= 0x8000 and index <= 0x8FFF
-            # Within BG tile data?
-            if @LCDC & 0x10
-              @isBgDirty = true
+        else if index >= 0x8000 and index <= 0x8FFF
+          # Within BG tile data?
+          if @LCDC & 0x10
+            @isBgDirty = true
 
 
-      else if index == 0xFF40
-        # Bg & Window Display flipped on?
-        if !(@LCDC & 0x1) and value & 0x1
-          @isBgDirty = true
+    else if index == 0xFF40
+      # Bg & Window Display flipped on?
+      if !(@LCDC & 0x1) and value & 0x1
+        @isBgDirty = true
 
-        # BG Tile Map Display Select changed?
-        if @LCDC & 0x8 != value & 0x8
-          @isBgDirty = true
+      # BG Tile Map Display Select changed?
+      if @LCDC & 0x8 != value & 0x8
+        @isBgDirty = true
 
-        # BG & Window Tile Data Select changed?
-        if @LCDC & 0x10 != value & 0x10
-          @isBgDirty = true
+      # BG & Window Tile Data Select changed?
+      if @LCDC & 0x10 != value & 0x10
+        @isBgDirty = true
 
-        # LCD Control Operation flipped on?
-        if !(@LCDC & 0x80) and value & 0x80
-          @isBgDirty = true
+      # LCD Control Operation flipped on?
+      if !(@LCDC & 0x80) and value & 0x80
+        @isBgDirty = true
 
-        @LCDC = value
+      @LCDC = value
 
   Get: (index) ->
     if index >= 0x8000 and index <= 0xA000
@@ -137,6 +139,7 @@ class Video
 
   render: ->
     console.log 'render'
+    @isBgDirty = true
     @clear()
     @drawBackground()
     @drawSprites()
@@ -146,7 +149,8 @@ class Video
 
   drawTile: (tileIndex, x, y) ->
     # Tiles are 16 bytes long
-    baseIndex = tileIndex * 16
+    #tileIndex += 128 # for signed tiles
+    baseIndex = tileIndex * 16 # + 0x800 # for signed tiles
 
     # 8 rows
     for y2 in [0...8]
