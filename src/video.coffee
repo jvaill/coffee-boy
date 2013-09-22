@@ -148,9 +148,14 @@ class Video
     @CanvasCtx.clearRect(0, 0, 300, 300)
 
   drawTile: (tileIndex, x, y) ->
+    # Two's complement
+    sign = (tileIndex >> 7) & 0x1
+    if sign
+      tileIndex = -((tileIndex ^ 0xFF) + 1)
+
     # Tiles are 16 bytes long
-    #tileIndex += 128 # for signed tiles
-    baseIndex = tileIndex * 16 # + 0x800 # for signed tiles
+    tileIndex += 128 # for signed tiles
+    baseIndex = tileIndex * 16 + 0x800 # for signed tiles
 
     # 8 rows
     for y2 in [0...8]
@@ -165,12 +170,13 @@ class Video
 
     @imageData.data.set(@buf8)
 
-  drawSprite: (tileIndex, x, y) ->
+  drawSprite: (tileIndex, x, y, xflipped) ->
     image = @CanvasCtx.createImageData(8, 8)
     buf = new ArrayBuffer(image.data.length);
     buf8 = new Uint8ClampedArray(buf);
     data = new Uint32Array(buf);
 
+    #tileIndex &= 0xFE # lower bit ignored in 8x16 mode
     # Tiles are 16 bytes long
     baseIndex = tileIndex * 16
 
@@ -181,9 +187,14 @@ class Video
       tiles2 = @Memory[rowIndex + 1]
 
       for i in [0...8]
+        if xflipped
+          itmp = 7 - i
+        else
+          itmp = i
+
         nib = ((tiles >> (7 - i) & 1) << 1) | (tiles2 >> (7 - i) & 1)
         colour = @BgPal[nib]
-        data[(y2) * 8 + (i)] =  (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
+        data[(y2) * 8 + (itmp)] =  (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
 
     image.data.set(buf8)
     @CanvasCtx.putImageData(image, x, y)
@@ -206,8 +217,13 @@ class Video
       ypos = @MMU.Get(baseIndex) - 16
       xpos = @MMU.Get(baseIndex + 1) - 8
       pattern = @MMU.Get(baseIndex + 2)
+      attributes = @MMU.Get(baseIndex + 3)
+
+      xflipped = (attributes & 0x20) > 0
 
       if xpos > 0 or ypos > 0
-        @drawSprite(pattern, xpos, ypos)
+        pattern = pattern & 0xFE
+        @drawSprite(pattern, xpos, ypos, xflipped)
+        @drawSprite(pattern + 1, xpos, ypos + 8, xflipped)
 
 window.Video = Video

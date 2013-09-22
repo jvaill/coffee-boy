@@ -3,7 +3,7 @@ CoffeeBoy
 
 A Game Boy emulator written in CoffeeScript.
 
-CoffeeBoy currently includes a complete disassembler and a mostly complete, very accurate, CPU core. Interrupts, timers, and most hardware is yet to be implemented with the exception of basic graphics.
+CoffeeBoy currently includes a complete disassembler and a mostly complete, very accurate, CPU core. Some games run, albeit with tons of glitches - mostly graphical.
 
 With CoffeeScript installed, run ```cake build``` to see available tasks.
 

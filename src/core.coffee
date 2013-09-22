@@ -395,7 +395,7 @@ class Core
     # Nothing to see here.
 
   HALT: ->
-    console.log 'HALT is not implemented!'
+    #console.log 'HALT is not implemented!'
 
   STOP: ->
     console.log 'STOP is not implemented!'
