@@ -70,10 +70,12 @@ $ ->
     if isPaused
       $(this).text('Resume')
       $('#step').removeAttr('disabled')
+      $('#memory').hexView('Refresh')
       updateRegisters()
     else
       $(this).text('Pause')
       $('#step').attr('disabled', 'disabled')
+      $('#disassembly').disassemblyView('SetPC', null)
       run()
 
   ctx = $('#canvas').get(0).getContext('2d')
@@ -84,6 +86,8 @@ $ ->
   window.timer = new Timer(mmu)
   mmu.Input = input
   mmu.Video = video
+
+  $('#memory').hexView(mmu.memory)
 
   # Reset registers
   updateRegisters()
@@ -101,10 +105,10 @@ $ ->
     # Download ROM
     downloadBlob rom, (blob2) ->
       disasembler = new Disassembler(blob2)
-      #$('#disassembly').disassemblyView(disasembler)
+      $('#disassembly').disassemblyView(disasembler)
 
-      #$('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
-      #  window.core.Breakpoints = breakpoints
+      $('#disassembly').disassemblyView 'GetBreakpoints', (breakpoints) ->
+        window.core.Breakpoints = breakpoints
 
 
       mmu.Cart = new Cart(mmu, blob2)

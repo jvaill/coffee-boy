@@ -80,8 +80,6 @@ class Video
         break
 
   Set: (index, value) ->
-    if window.gpuecho?
-      console.log "Set at #{index}"
     if index >= 0x8000 and index <= 0xA000
       indexIntoVram = index - 0x8000
       @Memory[indexIntoVram] = value
@@ -138,35 +136,47 @@ class Video
       @LCDC
 
   render: ->
-    console.log 'render'
     @isBgDirty = true
     @clear()
-    @drawBackground()
-    @drawSprites()
+
+    if @LCDC & 0x80 # LCD Display Enable
+      @drawBackground()
+      @drawSprites()
 
   clear: ->
     @CanvasCtx.clearRect(0, 0, 300, 300)
 
   drawTile: (tileIndex, x, y) ->
-    # Two's complement
-    sign = (tileIndex >> 7) & 0x1
-    if sign
-      tileIndex = -((tileIndex ^ 0xFF) + 1)
+    baseTileDataIndex = 0
 
-    # Tiles are 16 bytes long
-    tileIndex += 128 # for signed tiles
-    baseIndex = tileIndex * 16 + 0x800 # for signed tiles
+    # BG & Window Tile Data Select
+    unless @LCDC & 0x10
+      # Tile data starts at 0x8800 and tiles are signed (i.e. tile #0 lies at address 0x9000)
+      baseTileDataIndex = 0x800
 
-    # 8 rows
+      # Two's complement
+      sign = (tileIndex >> 7) & 0x1
+      if sign
+        tileIndex = -((tileIndex ^ 0xFF) + 1)
+
+      # Add 128 to get an index we can multiply against
+      tileIndex += 128
+
+    # Get its index in memory
+    tileDataIndex = baseTileDataIndex + tileIndex * 16 # 16 bytes per tile
+
+    # Draw the tile, tiles are 8x8 pixels
     for y2 in [0...8]
-      rowIndex = baseIndex + y2 * 2
-      tiles  = @Memory[rowIndex]
-      tiles2 = @Memory[rowIndex + 1]
+      tileDataRowIndex = tileDataIndex + y2 * 2 # 2 bytes per row
+      pixelData  = @Memory[tileDataRowIndex]
+      pixelData2 = @Memory[tileDataRowIndex + 1]
 
-      for i in [0...8]
-        nib = ((tiles >> (7 - i) & 1) << 1) | (tiles2 >> (7 - i) & 1)
+      for x2 in [0...8]
+        # Get a 3 bit offset into palette data for the current pixel
+        nib = ((pixelData >> (7 - x2) & 1) << 1) | (pixelData2 >> (7 - x2) & 1)
         colour = @BgPal[nib]
-        @data[(y + y2) * 256 + (x + i)] =  (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
+        # Set the pixel on the background
+        @data[(y + y2) * 256 + x + x2] = (255 << 24) | (colour[2] << 16) | (colour[1] << 8) | colour[0]
 
     @imageData.data.set(@buf8)
 
@@ -201,11 +211,15 @@ class Video
 
   drawBackground: ->
     if @isBgDirty
+      # BG & Window Tile Data Select
+      tileMapIndex = unless @LCDC & 0x8 then 0x1800 else 0x1C00
+
       # 32x32 tiles per background
-      for x in [0...32]
-        for y in [0...32]
-          mapIdx = @Memory[0x1800 + x + y * 32]
-          @drawTile mapIdx, x * 8, y * 8
+      for y in [0...32]
+        for x in [0...32]
+          tileIndex = @Memory[tileMapIndex + y * 32 + x]
+          # each tile is 8x8 pixels
+          @drawTile tileIndex, x * 8, y * 8
 
       @isBgDirty = false
     @CanvasCtx.putImageData(@imageData, 0, 0)
