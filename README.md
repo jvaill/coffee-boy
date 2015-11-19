@@ -1,15 +1,28 @@
-CoffeeBoy
+Coffee Boy
 ==========
 
-A Game Boy emulator written in CoffeeScript.
+A Game Boy emulator for the browser written in CoffeeScript.
 
-CoffeeBoy currently includes a complete disassembler and a mostly complete, very accurate, CPU core. Some games run, albeit with tons of glitches - mostly graphical.
+![tetris](assets/tetris.gif)
+![zelda](assets/zelda.gif)
 
-With CoffeeScript installed, run ```cake build``` to see available tasks.
+Coffee Boy currently includes a complete disassembler and a mostly complete, very accurate, CPU core. Some games run, albeit with tons of glitches - mostly graphical.
 
-### Blargg's CPU instructions test ROM
+### Getting Started
 
-Blargg's test ROMs are a good indicator of an emulator's accuracy [with most emulators failing some tests.](http://gbdev.gg8.se/wiki/articles/Test_ROMs) CoffeeBoy's CPU core already performs better than a large percentage of emulators.
+With CoffeeScript installed, run ```cake build``` to see available tasks. `cake server` starts listening at http://localhost:3000. You'll need to find your own bootloader ROM and copy it to `/www/ROMS/DMG_ROM.bin`, your game ROM should be copied to `/www/ROMS/ROM.gb`.
+
+### Disassembler
+
+![disassembler](assets/disassembler.gif)
+
+### Memory Debugger
+
+![memory-debugger](assets/memory-debugger.gif)
+
+### Blargg's CPU instruction test ROM
+
+Blargg's test ROMs are a good indicator of an emulator's accuracy [with most emulators failing some tests.](http://gbdev.gg8.se/wiki/articles/Test_ROMs) Coffee Boy's CPU core already performs better than a large majority of emulators.
 
 ```
 Pass: 01-special
