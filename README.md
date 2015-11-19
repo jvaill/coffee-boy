@@ -10,7 +10,7 @@ Coffee Boy currently includes a complete disassembler and a mostly complete, ver
 
 ### Getting Started
 
-With CoffeeScript installed, run ```cake build``` to see available tasks. `cake server` starts listening at http://localhost:3000. You'll need to find your own bootloader ROM and copy it to `/www/ROMS/DMG_ROM.bin`, your game ROM should be copied to `/www/ROMS/ROM.gb`.
+With CoffeeScript installed, run ```cake build``` to see available tasks. `cake server` starts listening at [http://localhost:3000](http://localhost:3000). You'll need to find your own bootloader ROM and copy it to `/www/ROMS/DMG_ROM.bin`, your game ROM should be copied to `/www/ROMS/ROM.gb`.
 
 ### Disassembler
 
